@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../auth-context';
+import heroImage from '../assets/hero.png';
 
 const initialSignup = {
   fullName: '',
@@ -101,143 +102,149 @@ export default function LoginPage() {
 
   return (
     <div className="auth-wrap">
-      <div className="auth-panel">
-        <p className="eyebrow">Inventory Management System</p>
-        <h1>CoreInventory</h1>
-        <p className="muted">
-          A modular, real-time stock platform for receipts, deliveries, transfers, and adjustments.
-        </p>
+      <div className="auth-split">
+        <section className="auth-visual" aria-hidden="true">
+          <img src={heroImage} alt="" />
+          <div className="auth-visual-copy">
+            <h2>Inventory Management Platform</h2>
+            <p>Track stock, warehouses, and move history from one reliable workspace.</p>
+          </div>
+        </section>
 
-        <div className="auth-tabs">
-          <button type="button" onClick={() => setMode('login')} className={mode === 'login' ? 'active' : ''}>
-            Login
-          </button>
-          <button type="button" onClick={() => setMode('signup')} className={mode === 'signup' ? 'active' : ''}>
-            Sign Up
-          </button>
-          <button type="button" onClick={() => setMode('reset')} className={mode === 'reset' ? 'active' : ''}>
-            Reset Password
-          </button>
-        </div>
+        <section className="auth-panel">
+          <p className="eyebrow">CoreInventory</p>
+          <h1>Hello</h1>
+          <p className="muted">Sign in or create an account to get started.</p>
 
-        {mode === 'login' && (
-          <form onSubmit={handleLogin} className="form-grid">
-            <label>
-              Email
-              <input
-                type="email"
-                required
-                value={loginForm.email}
-                onChange={(e) => setLoginForm((p) => ({ ...p, email: e.target.value }))}
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                required
-                value={loginForm.password}
-                onChange={(e) => setLoginForm((p) => ({ ...p, password: e.target.value }))}
-              />
-            </label>
-            <button type="submit" disabled={loading}>
-              {loading ? 'Please wait...' : 'Login'}
+          <div className="auth-tabs">
+            <button type="button" onClick={() => setMode('login')} className={mode === 'login' ? 'active' : ''}>
+              Login
             </button>
-          </form>
-        )}
-
-        {mode === 'signup' && (
-          <form onSubmit={handleSignup} className="form-grid">
-            <label>
-              Full name
-              <input
-                type="text"
-                required
-                value={signupForm.fullName}
-                onChange={(e) => setSignupForm((p) => ({ ...p, fullName: e.target.value }))}
-              />
-            </label>
-            <label>
-              Email
-              <input
-                type="email"
-                required
-                value={signupForm.email}
-                onChange={(e) => setSignupForm((p) => ({ ...p, email: e.target.value }))}
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={signupForm.password}
-                onChange={(e) => setSignupForm((p) => ({ ...p, password: e.target.value }))}
-              />
-            </label>
-            <label>
-              Role
-              <select
-                value={signupForm.role}
-                onChange={(e) => setSignupForm((p) => ({ ...p, role: e.target.value }))}
-              >
-                <option value="inventory_manager">Inventory Manager</option>
-                <option value="warehouse_staff">Warehouse Staff</option>
-              </select>
-            </label>
-            <button type="submit" disabled={loading}>
-              {loading ? 'Please wait...' : 'Create account'}
+            <button type="button" onClick={() => setMode('signup')} className={mode === 'signup' ? 'active' : ''}>
+              Sign Up
             </button>
-          </form>
-        )}
-
-        {mode === 'reset' && (
-          <form onSubmit={handleResetPassword} className="form-grid">
-            <label>
-              Email
-              <input
-                type="email"
-                required
-                value={resetForm.email}
-                onChange={(e) => setResetForm((p) => ({ ...p, email: e.target.value }))}
-              />
-            </label>
-            <button type="button" className="ghost" onClick={handleGenerateOtp}>
-              Generate OTP
+            <button type="button" onClick={() => setMode('reset')} className={mode === 'reset' ? 'active' : ''}>
+              Reset
             </button>
-            {otpPreview && (
-              <p className="otp-note">Development OTP: {otpPreview}</p>
-            )}
-            <label>
-              OTP code
-              <input
-                type="text"
-                required
-                minLength={6}
-                maxLength={6}
-                value={resetForm.otp}
-                onChange={(e) => setResetForm((p) => ({ ...p, otp: e.target.value }))}
-              />
-            </label>
-            <label>
-              New password
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={resetForm.newPassword}
-                onChange={(e) => setResetForm((p) => ({ ...p, newPassword: e.target.value }))}
-              />
-            </label>
-            <button type="submit" disabled={loading}>
-              {loading ? 'Please wait...' : 'Reset Password'}
-            </button>
-          </form>
-        )}
+          </div>
 
-        {message && <p className="success-message">{message}</p>}
-        {error && <p className="error-message">{error}</p>}
+          {mode === 'login' && (
+            <form onSubmit={handleLogin} className="form-grid">
+              <label>
+                Email Address
+                <input
+                  type="email"
+                  required
+                  value={loginForm.email}
+                  onChange={(e) => setLoginForm((p) => ({ ...p, email: e.target.value }))}
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  required
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm((p) => ({ ...p, password: e.target.value }))}
+                />
+              </label>
+              <button type="submit" disabled={loading}>
+                {loading ? 'Please wait...' : 'Login'}
+              </button>
+            </form>
+          )}
+
+          {mode === 'signup' && (
+            <form onSubmit={handleSignup} className="form-grid">
+              <label>
+                Full Name
+                <input
+                  type="text"
+                  required
+                  value={signupForm.fullName}
+                  onChange={(e) => setSignupForm((p) => ({ ...p, fullName: e.target.value }))}
+                />
+              </label>
+              <label>
+                Email Address
+                <input
+                  type="email"
+                  required
+                  value={signupForm.email}
+                  onChange={(e) => setSignupForm((p) => ({ ...p, email: e.target.value }))}
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={signupForm.password}
+                  onChange={(e) => setSignupForm((p) => ({ ...p, password: e.target.value }))}
+                />
+              </label>
+              <label>
+                Role
+                <select
+                  value={signupForm.role}
+                  onChange={(e) => setSignupForm((p) => ({ ...p, role: e.target.value }))}
+                >
+                  <option value="inventory_manager">Inventory Manager</option>
+                  <option value="warehouse_staff">Warehouse Staff</option>
+                </select>
+              </label>
+              <button type="submit" disabled={loading}>
+                {loading ? 'Please wait...' : 'Create Account'}
+              </button>
+            </form>
+          )}
+
+          {mode === 'reset' && (
+            <form onSubmit={handleResetPassword} className="form-grid">
+              <label>
+                Email Address
+                <input
+                  type="email"
+                  required
+                  value={resetForm.email}
+                  onChange={(e) => setResetForm((p) => ({ ...p, email: e.target.value }))}
+                />
+              </label>
+              <button type="button" className="ghost" onClick={handleGenerateOtp}>
+                Generate OTP
+              </button>
+              {otpPreview && <p className="otp-note">Development OTP: {otpPreview}</p>}
+              <label>
+                OTP Code
+                <input
+                  type="text"
+                  required
+                  minLength={6}
+                  maxLength={6}
+                  value={resetForm.otp}
+                  onChange={(e) => setResetForm((p) => ({ ...p, otp: e.target.value }))}
+                />
+              </label>
+              <label>
+                New Password
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={resetForm.newPassword}
+                  onChange={(e) => setResetForm((p) => ({ ...p, newPassword: e.target.value }))}
+                />
+              </label>
+              <button type="submit" disabled={loading}>
+                {loading ? 'Please wait...' : 'Reset Password'}
+              </button>
+            </form>
+          )}
+
+          {message && <p className="success-message">{message}</p>}
+          {error && <p className="error-message">{error}</p>}
+        </section>
       </div>
     </div>
   );
