@@ -71,6 +71,35 @@ export default function LedgerPage() {
         </div>
       </div>
 
+      {viewMode === 'kanban' && (
+        <section className="kanban-grid">
+          {statusColumns.map((status) => (
+            <article className="kanban-column" key={status}>
+              <header>
+                <h3>{status}</h3>
+                <span>{groupedRows[status].length}</span>
+              </header>
+
+              <div className="kanban-list">
+                {groupedRows[status].length === 0 && <p className="muted">No records</p>}
+                {groupedRows[status].map((row) => (
+                  <div key={row.id} className="kanban-card">
+                    <strong>{row.reference_code || `OP-${row.id}`}</strong>
+                    <p>{row.contact_name || 'No contact'}</p>
+                    <p>
+                      {row.from_location_name || '-'} to {row.to_location_name || '-'}
+                    </p>
+                    <p className={row.operation_type === 'delivery' ? 'qty-out' : 'qty-in'}>
+                      Qty: {row.total_quantity}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
       <div className="page-two-column">
         <div className="page-left-stack">
           <div className="filters">
@@ -182,34 +211,7 @@ export default function LedgerPage() {
             </section>
           )}
 
-          {viewMode === 'kanban' && (
-            <section className="kanban-grid">
-              {statusColumns.map((status) => (
-                <article className="kanban-column" key={status}>
-                  <header>
-                    <h3>{status}</h3>
-                    <span>{groupedRows[status].length}</span>
-                  </header>
-
-                  <div className="kanban-list">
-                    {groupedRows[status].length === 0 && <p className="muted">No records</p>}
-                    {groupedRows[status].map((row) => (
-                      <div key={row.id} className="kanban-card">
-                        <strong>{row.reference_code || `OP-${row.id}`}</strong>
-                        <p>{row.contact_name || 'No contact'}</p>
-                        <p>
-                          {row.from_location_name || '-'} to {row.to_location_name || '-'}
-                        </p>
-                        <p className={row.operation_type === 'delivery' ? 'qty-out' : 'qty-in'}>
-                          Qty: {row.total_quantity}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </section>
-          )}
+          {/* Kanban moved below so it can span full width */}
         </div>
       </div>
 
