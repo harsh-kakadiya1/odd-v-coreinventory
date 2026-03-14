@@ -37,7 +37,14 @@ export default function LoginPage() {
     <div className="auth-wrap">
       <div className="auth-split">
         <section className="auth-visual" aria-hidden="true">
-          <img src={heroImage} alt="" />
+          <img
+            src="/login.jpg"
+            alt=""
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = heroImage;
+            }}
+          />
           <div className="auth-visual-copy">
             <h2>Inventory Management Platform</h2>
             <p>Track stock, warehouses, and move history from one reliable workspace.</p>

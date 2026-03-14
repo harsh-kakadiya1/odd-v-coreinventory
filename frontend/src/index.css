@@ -157,7 +157,7 @@ label {
 }
 
 .auth-visual {
-  background: #f2f4f7;
+  background: #ffffff;
   border-right: 1px solid var(--line);
   display: grid;
   place-items: center;
@@ -167,7 +167,9 @@ label {
 }
 
 .auth-visual img {
-  width: min(430px, 90%);
+  width: min(560px, 92%);
+  max-width: 92%;
+  max-height: 560px;
   height: auto;
   object-fit: contain;
 }

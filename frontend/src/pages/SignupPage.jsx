@@ -104,7 +104,14 @@ export default function SignupPage() {
     <div className="auth-wrap">
       <div className="auth-split">
         <section className="auth-visual" aria-hidden="true">
-          <img src={heroImage} alt="Inventory illustration" />
+            <img
+              src="/login.jpg"
+              alt=""
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = heroImage;
+              }}
+            />
           <div className="auth-visual-copy">
             <h2>Inventory Management</h2>
             <p>Create an account to manage warehouses, stock, and movements.</p>
