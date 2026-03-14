@@ -21,8 +21,8 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div>
+      <header className="top-nav">
+        <div className="brand-wrap">
           <p className="eyebrow">CoreInventory</p>
           <h1 className="brand">Warehouse Control</h1>
         </div>
@@ -39,14 +39,16 @@ export default function AppLayout() {
           ))}
         </nav>
 
-        <div className="sidebar-user">
-          <p>{user?.full_name || user?.fullName}</p>
-          <span>{user?.role}</span>
+        <div className="nav-actions">
+          <div className="sidebar-user">
+            <p>{user?.full_name || user?.fullName}</p>
+            <span>{user?.role}</span>
+          </div>
           <button type="button" className="ghost" onClick={onLogout}>
             Logout
           </button>
         </div>
-      </aside>
+      </header>
 
       <main className="content">
         <Outlet />

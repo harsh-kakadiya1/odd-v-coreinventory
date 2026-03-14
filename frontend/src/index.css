@@ -286,7 +286,7 @@ label {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 250px 1fr;
+  grid-template-rows: auto 1fr;
   min-height: 100vh;
 }
 
@@ -300,6 +300,41 @@ label {
   gap: 1rem;
 }
 
+/* Top navigation styles (replaces side panel) */
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  background: var(--sidebar);
+  border-bottom: 1px solid var(--line);
+}
+
+.top-nav .brand-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.top-nav .nav-links {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.top-nav .nav-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.top-nav .sidebar-user {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+}
+
 .brand {
   margin-top: 0.4rem;
   font-size: 1.2rem;
@@ -308,28 +343,38 @@ label {
 
 .nav-links {
   display: grid;
-  gap: 0.3rem;
+  gap: 0.6rem;
+  padding: 0.6rem 0;
 }
 
 .nav-link {
+  display: block;
   text-decoration: none;
-  color: #475467;
-  padding: 0.55rem 0.7rem;
-  border-radius: 0.6rem;
+  color: #344054;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.8rem;
   border: 1px solid transparent;
-  font-weight: 600;
+  font-weight: 700;
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(16,24,40,0.02);
+  transition: none;
+  transform-origin: left center;
 }
 
 .nav-link:hover {
-  background: #f8fafc;
-  border-color: #e5e7eb;
-  color: #1d2939;
+  background: #f8fbff;
+  border-color: #e6eefc;
+  color: #0f1724;
+  /* no transform on hover to avoid size changes */
+  box-shadow: 0 2px 8px rgba(16,24,40,0.04);
 }
 
 .nav-link.active {
-  background: var(--primary-soft);
-  border-color: #d6e4ff;
-  color: #175cd3;
+  background: #eaf4ff; /* light blue */
+  border-color: #cfe6ff;
+  color: var(--primary);
+  /* no transform/scale - only color change for active state */
+  box-shadow: 0 2px 8px rgba(23,92,211,0.04);
 }
 
 .sidebar-user {
@@ -347,17 +392,24 @@ label {
 }
 
 .content {
-  padding: 1.15rem;
+  padding: 1.5rem 2rem;
   display: grid;
-  gap: 1rem;
+  gap: 1.1rem;
   align-content: start;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .header-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.header-row h2 {
+  font-size: 1.6rem;
 }
 
 .header-actions {
@@ -367,14 +419,21 @@ label {
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 0.8rem;
+  grid-template-columns: repeat(2, minmax(180px, 360px));
+  gap: 1rem;
+  align-items: center;
+  justify-content: start;
+  margin-bottom: 0.25rem;
+}
+
+.filters label {
+  max-width: 360px;
 }
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
 }
 
 .card,
@@ -387,9 +446,10 @@ label {
 }
 
 .card {
-  padding: 0.9rem;
+  padding: 1.15rem;
   display: grid;
-  gap: 0.35rem;
+  gap: 0.5rem;
+  min-height: 72px;
 }
 
 .card strong {
@@ -405,7 +465,7 @@ label {
 
 .panel,
 .table-card {
-  padding: 0.95rem;
+  padding: 1.15rem;
 }
 
 .form-grid {
@@ -430,15 +490,15 @@ label {
 .table-card table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 0.35rem;
+  margin-top: 0.5rem;
 }
 
 .table-card th,
 .table-card td {
   text-align: left;
   border-bottom: 1px solid #edf1f5;
-  padding: 0.56rem 0.38rem;
-  font-size: 0.9rem;
+  padding: 0.75rem 0.5rem;
+  font-size: 0.95rem;
   vertical-align: middle;
 }
 
