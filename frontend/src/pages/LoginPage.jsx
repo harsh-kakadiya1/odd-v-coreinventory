@@ -23,7 +23,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/login', loginForm);
+      const response = await api.post('/auth/login', {
+        loginId: loginForm.loginId.trim(),
+        password: loginForm.password,
+      });
       login(response.data.token, response.data.user);
       navigate('/dashboard');
     } catch (err) {

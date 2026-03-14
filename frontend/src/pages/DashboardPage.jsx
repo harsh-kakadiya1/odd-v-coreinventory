@@ -71,7 +71,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <section>
+    <section className="dashboard-page">
       <div className="header-row">
         <div>
           <h2>Inventory Dashboard</h2>
@@ -84,7 +84,7 @@ export default function DashboardPage() {
 
       <div className="page-two-column">
         <div className="page-left-stack">
-          <div className="filters">
+          <div className="filters dashboard-filters panel">
             <label>
               Document Type
               <select
@@ -158,26 +158,26 @@ export default function DashboardPage() {
             </label>
           </div>
 
-          <div className="kpi-grid">
+          <div className="kpi-grid dashboard-kpi-grid">
             {cards.map((card) => (
-              <article key={card.title} className="card">
-                <p>{card.title}</p>
-                <strong>{card.value}</strong>
+              <article key={card.title} className="card kpi-card">
+                <p className="kpi-title">{card.title}</p>
+                <strong className="kpi-value">{card.value}</strong>
               </article>
             ))}
           </div>
 
           {kpis.low_stock_products && kpis.low_stock_products.length > 0 && (
-            <section className="panel">
+            <section className="panel low-stock-panel">
               <h3>Low / Reorder Items</h3>
-              <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <div className="low-stock-list">
                 {kpis.low_stock_products.slice(0, 8).map((p) => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={p.id} className="low-stock-item">
                     <div>
                       <strong>{p.name}</strong>
                       <div className="table-sub">{p.sku} • On hand: {p.on_hand}</div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
+                    <div className="low-stock-meta">
                       <span className="muted">Reorder @ {p.reorder_level}</span>
                     </div>
                   </div>
@@ -189,33 +189,37 @@ export default function DashboardPage() {
         </div>
 
         <div className="page-right-stack">
-          <section className="table-card">
+          <section className="table-card dashboard-ops-card">
             <h3>Recent Operations</h3>
-            <table>
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kpis.recentOperations.length === 0 && (
+            <div className="table-scroll">
+              <table>
+                <thead>
                   <tr>
-                    <td colSpan={4}>No operations yet.</td>
+                    <th>Reference</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Created</th>
                   </tr>
-                )}
-                {kpis.recentOperations.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.reference}</td>
-                    <td>{row.operation_type}</td>
-                    <td>{row.status}</td>
-                    <td>{new Date(row.created_at).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {kpis.recentOperations.length === 0 && (
+                    <tr>
+                      <td colSpan={4}>No operations yet.</td>
+                    </tr>
+                  )}
+                  {kpis.recentOperations.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.reference}</td>
+                      <td>{row.operation_type}</td>
+                      <td>
+                        <span className={`status-pill status-${row.status}`}>{row.status}</span>
+                      </td>
+                      <td>{new Date(row.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         </div>
       </div>

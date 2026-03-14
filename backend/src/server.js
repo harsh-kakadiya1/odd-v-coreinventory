@@ -163,12 +163,8 @@ const signupSchema = z.object({
 });
 
 const loginSchema = z.object({
-  // allow either an email address or a legacy login id
-  loginId: z.union([
-    z.string().email(),
-    z.string().trim().min(6).max(12).regex(/^[A-Za-z0-9_]+$/),
-  ]),
-  password: z.string().min(6),
+  loginId: z.string().trim().min(1),
+  password: z.string().min(1),
 });
 
 app.get('/api/health', async (_req, res) => {
