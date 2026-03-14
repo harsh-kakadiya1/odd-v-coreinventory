@@ -17,6 +17,15 @@ async function connectToDatabase() {
   return db;
 }
 
+async function closeDatabaseConnection() {
+  if (client) {
+    await client.close();
+  }
+
+  client = undefined;
+  db = undefined;
+}
+
 function getDb() {
   if (!db) {
     throw new Error('MongoDB is not connected yet. Call connectToDatabase first.');
@@ -35,8 +44,16 @@ async function getNextSequence(sequenceName) {
     { upsert: true, returnDocument: 'after' }
   );
 
-  const counter = result && result.value ? result.value : result;
-  return counter.value;
+  // MongoDB driver versions differ: some return the document directly, others return { value: doc }.
+  if (result && typeof result.value === 'number' && typeof result._id !== 'undefined') {
+    return result.value;
+  }
+
+  if (result && result.value && typeof result.value.value === 'number') {
+    return result.value.value;
+  }
+
+  throw new Error(`Unable to resolve next sequence value for ${sequenceName}`);
 }
 
 async function ensureDatabaseSetup() {
@@ -57,6 +74,7 @@ async function ensureDatabaseSetup() {
 }
 
 module.exports = {
+  closeDatabaseConnection,
   connectToDatabase,
   ensureDatabaseSetup,
   getCollection,

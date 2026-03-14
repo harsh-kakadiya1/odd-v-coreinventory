@@ -2,7 +2,13 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
-const { connectToDatabase, ensureDatabaseSetup, getCollection, getNextSequence } = require('./db');
+const {
+  closeDatabaseConnection,
+  connectToDatabase,
+  ensureDatabaseSetup,
+  getCollection,
+  getNextSequence,
+} = require('./db');
 
 async function initDb() {
   try {
@@ -36,6 +42,8 @@ async function initDb() {
   } catch (error) {
     console.error('Failed to initialize MongoDB database:', error.message);
     process.exitCode = 1;
+  } finally {
+    await closeDatabaseConnection();
   }
 }
 

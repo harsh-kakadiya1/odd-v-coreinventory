@@ -57,7 +57,17 @@ cd backend
 npm run db:init
 ```
 
-### 3) Start backend API
+### 3) Seed demo data (users, products, operations)
+
+```bash
+cd backend
+npm run db:seed
+```
+
+Seed script file: `backend/src/seed-db.js`.
+It includes all demo account IDs and passwords in `SEEDED_ACCOUNTS` and prints them in terminal after seeding.
+
+### 4) Start backend API
 
 ```bash
 cd backend
@@ -66,7 +76,7 @@ npm run dev
 
 Backend runs on `http://localhost:4000`.
 
-### 4) Start frontend
+### 5) Start frontend
 
 ```bash
 cd frontend
