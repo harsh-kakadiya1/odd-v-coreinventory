@@ -58,6 +58,21 @@ async function getNextSequence(sequenceName) {
 
 async function ensureDatabaseSetup() {
   await connectToDatabase();
+  // Remove any legacy unique `login_id` index which can cause duplicate-null errors
+  try {
+    const usersColl = getCollection('users');
+    const existing = await usersColl.indexes();
+    if (existing.some((ix) => ix.name === 'login_id_1')) {
+      try {
+        console.log('Dropping legacy index login_id_1 on users collection');
+        await usersColl.dropIndex('login_id_1');
+      } catch (err) {
+        console.warn('Could not drop login_id_1 index:', err.message || err);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to inspect/drop legacy indexes on users collection:', err.message || err);
+  }
 
   await Promise.all([
     getCollection('users').createIndex({ email: 1 }, { unique: true }),
