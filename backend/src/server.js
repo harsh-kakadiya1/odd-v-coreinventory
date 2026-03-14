@@ -380,14 +380,84 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 
 app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
   try {
-    const [products, stockBalances, operations] = await Promise.all([
+    const [products, stockBalances, operations, locations, lines] = await Promise.all([
       getCollection('products').find({}, { projection: { _id: 0 } }).toArray(),
       getCollection('stock_balances').find({}, { projection: { _id: 0 } }).toArray(),
       getCollection('operations').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('locations').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('operation_lines').find({}, { projection: { _id: 0 } }).toArray(),
     ]);
 
+    const locationById = new Map(locations.map((l) => [l.id, l]));
+    const productById = new Map(products.map((p) => [p.id, p]));
+
+    // group operation lines by operation id
+    const linesByOperation = new Map();
+    for (const line of lines) {
+      const key = line.operation_id;
+      if (!linesByOperation.has(key)) {
+        linesByOperation.set(key, []);
+      }
+      linesByOperation.get(key).push(line);
+    }
+
+    // apply same filters as /api/operations
+    let filteredOps = operations;
+    if (req.query.documentType) {
+      filteredOps = filteredOps.filter((op) => op.operation_type === req.query.documentType);
+    }
+    if (req.query.status) {
+      filteredOps = filteredOps.filter((op) => op.status === req.query.status);
+    }
+    if (req.query.warehouseId) {
+      const warehouseId = Number(req.query.warehouseId);
+      filteredOps = filteredOps.filter((op) => {
+        const from = locationById.get(op.from_location_id);
+        const to = locationById.get(op.to_location_id);
+        return (from && from.warehouse_id === warehouseId) || (to && to.warehouse_id === warehouseId);
+      });
+    }
+    if (req.query.locationId) {
+      const locationId = Number(req.query.locationId);
+      filteredOps = filteredOps.filter(
+        (op) => Number(op.from_location_id) === locationId || Number(op.to_location_id) === locationId
+      );
+    }
+    if (req.query.categoryId) {
+      const categoryId = Number(req.query.categoryId);
+      filteredOps = filteredOps.filter((op) => {
+        const opLines = linesByOperation.get(op.id) || [];
+        return opLines.some((line) => {
+          const product = productById.get(line.product_id);
+          return product && Number(product.category_id) === categoryId;
+        });
+      });
+    }
+
+    // Filter stock balances according to warehouse/location/category filters
+    const filteredStockBalances = stockBalances.filter((sb) => {
+      if (req.query.warehouseId) {
+        const loc = locationById.get(sb.location_id);
+        if (!loc || Number(loc.warehouse_id) !== Number(req.query.warehouseId)) {
+          return false;
+        }
+      }
+      if (req.query.locationId) {
+        if (Number(sb.location_id) !== Number(req.query.locationId)) {
+          return false;
+        }
+      }
+      if (req.query.categoryId) {
+        const prod = productById.get(sb.product_id);
+        if (!prod || Number(prod.category_id) !== Number(req.query.categoryId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+
     const stockByProduct = new Map();
-    for (const stock of stockBalances) {
+    for (const stock of filteredStockBalances) {
       const key = Number(stock.product_id);
       const current = stockByProduct.get(key) || 0;
       stockByProduct.set(key, current + Number(stock.quantity || 0));
@@ -398,6 +468,9 @@ app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
     let outOfStockItems = 0;
 
     for (const product of products) {
+      if (req.query.categoryId && Number(product.category_id) !== Number(req.query.categoryId)) {
+        continue;
+      }
       const totalQty = Number(stockByProduct.get(product.id) || 0);
       if (totalQty > 0) {
         totalProductsInStock += 1;
@@ -411,17 +484,17 @@ app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
     }
 
     const pendingStates = new Set(['draft', 'waiting', 'ready']);
-    const pendingReceipts = operations.filter(
+    const pendingReceipts = filteredOps.filter(
       (op) => op.operation_type === 'receipt' && pendingStates.has(op.status)
     ).length;
-    const pendingDeliveries = operations.filter(
+    const pendingDeliveries = filteredOps.filter(
       (op) => op.operation_type === 'delivery' && pendingStates.has(op.status)
     ).length;
-    const internalTransfersScheduled = operations.filter(
+    const internalTransfersScheduled = filteredOps.filter(
       (op) => op.operation_type === 'internal' && pendingStates.has(op.status)
     ).length;
 
-    const recentOperations = [...operations]
+    const recentOperations = [...filteredOps]
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 10)
       .map((op) => ({
@@ -432,6 +505,25 @@ app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
         created_at: op.created_at,
       }));
 
+    // build low-stock product list (products at or below reorder level)
+    const lowStockProducts = [];
+    for (const product of products) {
+      if (req.query.categoryId && Number(product.category_id) !== Number(req.query.categoryId)) {
+        continue;
+      }
+      const totalQty = Number(stockByProduct.get(product.id) || 0);
+      const reorderLevel = Number(product.reorder_level || 0);
+      if (totalQty <= reorderLevel) {
+        lowStockProducts.push({
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          on_hand: totalQty,
+          reorder_level: reorderLevel,
+        });
+      }
+    }
+
     return res.json({
       total_products_in_stock: totalProductsInStock,
       low_stock_items: lowStockItems,
@@ -440,6 +532,7 @@ app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
       pending_deliveries: pendingDeliveries,
       internal_transfers_scheduled: internalTransfersScheduled,
       recentOperations,
+      low_stock_products: lowStockProducts,
     });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to load dashboard', detail: error.message });

@@ -115,189 +115,195 @@ export default function ProductsPage() {
         </button>
       </div>
 
-      <div className="split-grid">
-        <form className="panel form-grid" onSubmit={createProduct}>
-          <h3>Create Product</h3>
-          <label>
-            Product name
-            <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
-          </label>
-          <label>
-            SKU / Code
-            <input value={form.sku} onChange={(e) => setForm((p) => ({ ...p, sku: e.target.value }))} required />
-          </label>
-          <label>
-            Category
-            <select
-              value={form.categoryId}
-              onChange={(e) => setForm((p) => ({ ...p, categoryId: e.target.value }))}
-            >
-              <option value="">Uncategorized</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Unit of measure
-            <input
-              value={form.unitOfMeasure}
-              onChange={(e) => setForm((p) => ({ ...p, unitOfMeasure: e.target.value }))}
-              required
-            />
-          </label>
-          <label>
-            Per unit cost
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.unitCost}
-              onChange={(e) => setForm((p) => ({ ...p, unitCost: e.target.value }))}
-            />
-          </label>
-          <label>
-            Reorder level
-            <input
-              type="number"
-              step="0.01"
-              value={form.reorderLevel}
-              onChange={(e) => setForm((p) => ({ ...p, reorderLevel: e.target.value }))}
-            />
-          </label>
-          <label>
-            Initial stock (optional)
-            <input
-              type="number"
-              step="0.01"
-              value={form.initialStock}
-              onChange={(e) => setForm((p) => ({ ...p, initialStock: e.target.value }))}
-            />
-          </label>
-          <label>
-            Initial location (optional)
-            <select
-              value={form.initialLocationId}
-              onChange={(e) => setForm((p) => ({ ...p, initialLocationId: e.target.value }))}
-            >
-              <option value="">Select location</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.warehouse_name} / {loc.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit">Create Product</button>
-        </form>
+      <div className="page-two-column">
+        <div className="page-left-stack">
+          <div className="split-grid">
+            <form className="panel form-grid" onSubmit={createProduct}>
+              <h3>Create Product</h3>
+              <label>
+                Product name
+                <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
+              </label>
+              <label>
+                SKU / Code
+                <input value={form.sku} onChange={(e) => setForm((p) => ({ ...p, sku: e.target.value }))} required />
+              </label>
+              <label>
+                Category
+                <select
+                  value={form.categoryId}
+                  onChange={(e) => setForm((p) => ({ ...p, categoryId: e.target.value }))}
+                >
+                  <option value="">Uncategorized</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Unit of measure
+                <input
+                  value={form.unitOfMeasure}
+                  onChange={(e) => setForm((p) => ({ ...p, unitOfMeasure: e.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                Per unit cost
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.unitCost}
+                  onChange={(e) => setForm((p) => ({ ...p, unitCost: e.target.value }))}
+                />
+              </label>
+              <label>
+                Reorder level
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.reorderLevel}
+                  onChange={(e) => setForm((p) => ({ ...p, reorderLevel: e.target.value }))}
+                />
+              </label>
+              <label>
+                Initial stock (optional)
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.initialStock}
+                  onChange={(e) => setForm((p) => ({ ...p, initialStock: e.target.value }))}
+                />
+              </label>
+              <label>
+                Initial location (optional)
+                <select
+                  value={form.initialLocationId}
+                  onChange={(e) => setForm((p) => ({ ...p, initialLocationId: e.target.value }))}
+                >
+                  <option value="">Select location</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.warehouse_name} / {loc.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="submit">Create Product</button>
+            </form>
 
-        <div className="panel form-grid">
-          <h3>Create Category</h3>
-          <label>
-            Category name
-            <input value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} />
-          </label>
-          <button type="button" onClick={createCategory}>
-            Add Category
-          </button>
-          <label>
-            Search SKU/Product
-            <input value={search} onChange={(e) => setSearch(e.target.value)} />
-          </label>
-          <button type="button" className="ghost" onClick={loadData}>
-            Search
-          </button>
+            <div className="panel form-grid">
+              <h3>Create Category</h3>
+              <label>
+                Category name
+                <input value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} />
+              </label>
+              <button type="button" onClick={createCategory}>
+                Add Category
+              </button>
+              <label>
+                Search SKU/Product
+                <input value={search} onChange={(e) => setSearch(e.target.value)} />
+              </label>
+              <button type="button" className="ghost" onClick={loadData}>
+                Search
+              </button>
+            </div>
+
+            <form className="panel form-grid" onSubmit={adjustStock}>
+              <h3>Update Stock From Here</h3>
+              <label>
+                Product
+                <select
+                  value={adjustment.productId}
+                  onChange={(e) => setAdjustment((p) => ({ ...p, productId: e.target.value }))}
+                  required
+                >
+                  <option value="">Select product</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name} ({product.sku})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Location
+                <select
+                  value={adjustment.locationId}
+                  onChange={(e) => setAdjustment((p) => ({ ...p, locationId: e.target.value }))}
+                  required
+                >
+                  <option value="">Select location</option>
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.warehouse_name} / {loc.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Quantity delta (+/-)
+                <input
+                  type="number"
+                  step="0.01"
+                  value={adjustment.delta}
+                  onChange={(e) => setAdjustment((p) => ({ ...p, delta: e.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                Note
+                <input
+                  value={adjustment.notes}
+                  onChange={(e) => setAdjustment((p) => ({ ...p, notes: e.target.value }))}
+                  placeholder="Manual cycle count"
+                />
+              </label>
+              <button type="submit">Apply Adjustment</button>
+            </form>
+          </div>
         </div>
 
-        <form className="panel form-grid" onSubmit={adjustStock}>
-          <h3>Update Stock From Here</h3>
-          <label>
-            Product
-            <select
-              value={adjustment.productId}
-              onChange={(e) => setAdjustment((p) => ({ ...p, productId: e.target.value }))}
-              required
-            >
-              <option value="">Select product</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name} ({product.sku})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Location
-            <select
-              value={adjustment.locationId}
-              onChange={(e) => setAdjustment((p) => ({ ...p, locationId: e.target.value }))}
-              required
-            >
-              <option value="">Select location</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.warehouse_name} / {loc.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Quantity delta (+/-)
-            <input
-              type="number"
-              step="0.01"
-              value={adjustment.delta}
-              onChange={(e) => setAdjustment((p) => ({ ...p, delta: e.target.value }))}
-              required
-            />
-          </label>
-          <label>
-            Note
-            <input
-              value={adjustment.notes}
-              onChange={(e) => setAdjustment((p) => ({ ...p, notes: e.target.value }))}
-              placeholder="Manual cycle count"
-            />
-          </label>
-          <button type="submit">Apply Adjustment</button>
-        </form>
+        <div className="page-right-stack">
+          <section className="table-card">
+            <h3>Stock Table</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Per Unit Cost</th>
+                  <th>On Hand</th>
+                  <th>Free to Use</th>
+                  <th>Category</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.length === 0 && (
+                  <tr>
+                    <td colSpan={5}>No products found.</td>
+                  </tr>
+                )}
+                {products.map((product) => (
+                  <tr key={product.id}>
+                    <td>
+                      {product.name}
+                      <div className="table-sub">{product.sku}</div>
+                    </td>
+                    <td>{Number(product.per_unit_cost || 0)} Rs</td>
+                    <td>{Number(product.on_hand || product.total_stock || 0)}</td>
+                    <td>{Number(product.free_to_use || product.total_stock || 0)}</td>
+                    <td>{product.category_name || 'Uncategorized'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
       </div>
-
-      <section className="table-card">
-        <h3>Stock Table</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Product</th>
-              <th>Per Unit Cost</th>
-              <th>On Hand</th>
-              <th>Free to Use</th>
-              <th>Category</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.length === 0 && (
-              <tr>
-                <td colSpan={5}>No products found.</td>
-              </tr>
-            )}
-            {products.map((product) => (
-              <tr key={product.id}>
-                <td>
-                  {product.name}
-                  <div className="table-sub">{product.sku}</div>
-                </td>
-                <td>{Number(product.per_unit_cost || 0)} Rs</td>
-                <td>{Number(product.on_hand || product.total_stock || 0)}</td>
-                <td>{Number(product.free_to_use || product.total_stock || 0)}</td>
-                <td>{product.category_name || 'Uncategorized'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
 
       {error && <p className="error-message">{error}</p>}
     </section>
