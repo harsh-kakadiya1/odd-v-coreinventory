@@ -28,6 +28,15 @@ export default function ProductsPage() {
   const [categoryInput, setCategoryInput] = useState('');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [openPanels, setOpenPanels] = useState({
+    createProduct: false,
+    createCategory: false,
+    updateStock: false,
+  });
+
+  function togglePanel(panelKey) {
+    setOpenPanels((prev) => ({ ...prev, [panelKey]: !prev[panelKey] }));
+  }
 
   async function loadData() {
     setError('');
@@ -46,8 +55,12 @@ export default function ProductsPage() {
   }
 
   useEffect(() => {
-    loadData();
-  }, []);
+    const timer = setTimeout(() => {
+      loadData();
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [search]);
 
   async function createCategory() {
     if (!categoryInput.trim()) return;
@@ -115,162 +128,207 @@ export default function ProductsPage() {
         </button>
       </div>
 
-      <div className="page-two-column">
+      <div className="page-two-column products-layout">
         <div className="page-left-stack">
-          <div className="split-grid">
-            <form className="panel form-grid" onSubmit={createProduct}>
+          <form className="panel form-grid collapsible-panel" onSubmit={createProduct}>
+            <div className="collapsible-head">
               <h3>Create Product</h3>
-              <label>
-                Product name
-                <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
-              </label>
-              <label>
-                SKU / Code
-                <input value={form.sku} onChange={(e) => setForm((p) => ({ ...p, sku: e.target.value }))} required />
-              </label>
-              <label>
-                Category
-                <select
-                  value={form.categoryId}
-                  onChange={(e) => setForm((p) => ({ ...p, categoryId: e.target.value }))}
-                >
-                  <option value="">Uncategorized</option>
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Unit of measure
-                <input
-                  value={form.unitOfMeasure}
-                  onChange={(e) => setForm((p) => ({ ...p, unitOfMeasure: e.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                Per unit cost
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.unitCost}
-                  onChange={(e) => setForm((p) => ({ ...p, unitCost: e.target.value }))}
-                />
-              </label>
-              <label>
-                Reorder level
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.reorderLevel}
-                  onChange={(e) => setForm((p) => ({ ...p, reorderLevel: e.target.value }))}
-                />
-              </label>
-              <label>
-                Initial stock (optional)
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.initialStock}
-                  onChange={(e) => setForm((p) => ({ ...p, initialStock: e.target.value }))}
-                />
-              </label>
-              <label>
-                Initial location (optional)
-                <select
-                  value={form.initialLocationId}
-                  onChange={(e) => setForm((p) => ({ ...p, initialLocationId: e.target.value }))}
-                >
-                  <option value="">Select location</option>
-                  {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.warehouse_name} / {loc.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="submit">Create Product</button>
-            </form>
-
-            <div className="panel form-grid">
-              <h3>Create Category</h3>
-              <label>
-                Category name
-                <input value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} />
-              </label>
-              <button type="button" onClick={createCategory}>
-                Add Category
-              </button>
-              <label>
-                Search SKU/Product
-                <input value={search} onChange={(e) => setSearch(e.target.value)} />
-              </label>
-              <button type="button" className="ghost" onClick={loadData}>
-                Search
+              <button
+                type="button"
+                className={`panel-toggle ${openPanels.createProduct ? 'open' : ''}`}
+                onClick={() => togglePanel('createProduct')}
+                aria-label={openPanels.createProduct ? 'Collapse Create Product' : 'Expand Create Product'}
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M7 4l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
             </div>
+            {openPanels.createProduct && (
+              <>
+                <label>
+                  Product name
+                  <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} required />
+                </label>
+                <label>
+                  SKU / Code
+                  <input value={form.sku} onChange={(e) => setForm((p) => ({ ...p, sku: e.target.value }))} required />
+                </label>
+                <label>
+                  Category
+                  <select
+                    value={form.categoryId}
+                    onChange={(e) => setForm((p) => ({ ...p, categoryId: e.target.value }))}
+                  >
+                    <option value="">Uncategorized</option>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Unit of measure
+                  <input
+                    value={form.unitOfMeasure}
+                    onChange={(e) => setForm((p) => ({ ...p, unitOfMeasure: e.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  Per unit cost
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.unitCost}
+                    onChange={(e) => setForm((p) => ({ ...p, unitCost: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Reorder level
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.reorderLevel}
+                    onChange={(e) => setForm((p) => ({ ...p, reorderLevel: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Initial stock (optional)
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={form.initialStock}
+                    onChange={(e) => setForm((p) => ({ ...p, initialStock: e.target.value }))}
+                  />
+                </label>
+                <label>
+                  Initial location (optional)
+                  <select
+                    value={form.initialLocationId}
+                    onChange={(e) => setForm((p) => ({ ...p, initialLocationId: e.target.value }))}
+                  >
+                    <option value="">Select location</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.warehouse_name} / {loc.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="submit">Create Product</button>
+              </>
+            )}
+          </form>
 
-            <form className="panel form-grid" onSubmit={adjustStock}>
+          <section className="panel form-grid collapsible-panel">
+            <div className="collapsible-head">
+              <h3>Create Category</h3>
+              <button
+                type="button"
+                className={`panel-toggle ${openPanels.createCategory ? 'open' : ''}`}
+                onClick={() => togglePanel('createCategory')}
+                aria-label={openPanels.createCategory ? 'Collapse Create Category' : 'Expand Create Category'}
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M7 4l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+            {openPanels.createCategory && (
+              <>
+                <label>
+                  Category name
+                  <input value={categoryInput} onChange={(e) => setCategoryInput(e.target.value)} />
+                </label>
+                <button type="button" onClick={createCategory}>
+                  Add Category
+                </button>
+              </>
+            )}
+          </section>
+
+          <form className="panel form-grid collapsible-panel" onSubmit={adjustStock}>
+            <div className="collapsible-head">
               <h3>Update Stock From Here</h3>
-              <label>
-                Product
-                <select
-                  value={adjustment.productId}
-                  onChange={(e) => setAdjustment((p) => ({ ...p, productId: e.target.value }))}
-                  required
-                >
-                  <option value="">Select product</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} ({product.sku})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Location
-                <select
-                  value={adjustment.locationId}
-                  onChange={(e) => setAdjustment((p) => ({ ...p, locationId: e.target.value }))}
-                  required
-                >
-                  <option value="">Select location</option>
-                  {locations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.warehouse_name} / {loc.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Quantity delta (+/-)
-                <input
-                  type="number"
-                  step="0.01"
-                  value={adjustment.delta}
-                  onChange={(e) => setAdjustment((p) => ({ ...p, delta: e.target.value }))}
-                  required
-                />
-              </label>
-              <label>
-                Note
-                <input
-                  value={adjustment.notes}
-                  onChange={(e) => setAdjustment((p) => ({ ...p, notes: e.target.value }))}
-                  placeholder="Manual cycle count"
-                />
-              </label>
-              <button type="submit">Apply Adjustment</button>
-            </form>
-          </div>
+              <button
+                type="button"
+                className={`panel-toggle ${openPanels.updateStock ? 'open' : ''}`}
+                onClick={() => togglePanel('updateStock')}
+                aria-label={openPanels.updateStock ? 'Collapse Update Stock panel' : 'Expand Update Stock panel'}
+              >
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M7 4l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+            {openPanels.updateStock && (
+              <>
+                <label>
+                  Product
+                  <select
+                    value={adjustment.productId}
+                    onChange={(e) => setAdjustment((p) => ({ ...p, productId: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select product</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} ({product.sku})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Location
+                  <select
+                    value={adjustment.locationId}
+                    onChange={(e) => setAdjustment((p) => ({ ...p, locationId: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select location</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.warehouse_name} / {loc.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Quantity delta (+/-)
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={adjustment.delta}
+                    onChange={(e) => setAdjustment((p) => ({ ...p, delta: e.target.value }))}
+                    required
+                  />
+                </label>
+                <label>
+                  Note
+                  <input
+                    value={adjustment.notes}
+                    onChange={(e) => setAdjustment((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Manual cycle count"
+                  />
+                </label>
+                <button type="submit">Apply Adjustment</button>
+              </>
+            )}
+          </form>
         </div>
 
         <div className="page-right-stack">
           <section className="table-card">
             <h3>Stock Table</h3>
+            <div className="stock-search">
+              <label>
+                Search SKU/Product
+                <input value={search} onChange={(e) => setSearch(e.target.value)} />
+              </label>
+            </div>
             <table>
               <thead>
                 <tr>
