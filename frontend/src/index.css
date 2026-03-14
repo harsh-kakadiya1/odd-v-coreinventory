@@ -837,6 +837,28 @@ label {
   color: #027a48;
 }
 
+/* Settings page two-column layout: forms left, tables right */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.settings-layout .left-column .panel {
+  margin-bottom: 1rem;
+}
+
+.settings-layout .right-column .table-card {
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 900px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .status-done {
   background: #eff8ff;
   color: #175cd3;

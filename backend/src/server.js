@@ -471,6 +471,22 @@ app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
       stockByProduct.set(key, current + Number(stock.quantity || 0));
     }
 
+    // also build per-product per-location quantities so we can detect
+    // products that are low in a specific location even if total across
+    // all locations is above reorder level
+    const stockByProductByLocation = new Map();
+    for (const stock of filteredStockBalances) {
+      const pid = Number(stock.product_id);
+      const loc = Number(stock.location_id);
+      let locMap = stockByProductByLocation.get(pid);
+      if (!locMap) {
+        locMap = new Map();
+        stockByProductByLocation.set(pid, locMap);
+      }
+      const cur = locMap.get(loc) || 0;
+      locMap.set(loc, cur + Number(stock.quantity || 0));
+    }
+
     let totalProductsInStock = 0;
     let lowStockItems = 0;
     let outOfStockItems = 0;
@@ -480,12 +496,29 @@ app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
         continue;
       }
       const totalQty = Number(stockByProduct.get(product.id) || 0);
+      const reorderLevel = Number(product.reorder_level || 0);
+
       if (totalQty > 0) {
         totalProductsInStock += 1;
       }
-      if (totalQty > 0 && totalQty <= Number(product.reorder_level || 0)) {
+
+      // consider a product 'low' if its total is low OR any individual
+      // location's quantity is at/below the reorder level
+      let anyLocationLow = false;
+      const locMap = stockByProductByLocation.get(product.id);
+      if (locMap) {
+        for (const q of locMap.values()) {
+          if (q <= reorderLevel) {
+            anyLocationLow = true;
+            break;
+          }
+        }
+      }
+
+      if ((totalQty > 0 && totalQty <= reorderLevel) || anyLocationLow) {
         lowStockItems += 1;
       }
+
       if (totalQty <= 0) {
         outOfStockItems += 1;
       }
@@ -521,7 +554,19 @@ app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
       }
       const totalQty = Number(stockByProduct.get(product.id) || 0);
       const reorderLevel = Number(product.reorder_level || 0);
-      if (totalQty <= reorderLevel) {
+
+      let anyLocationLow = false;
+      const locMap = stockByProductByLocation.get(product.id);
+      if (locMap) {
+        for (const q of locMap.values()) {
+          if (q <= reorderLevel) {
+            anyLocationLow = true;
+            break;
+          }
+        }
+      }
+
+      if (totalQty <= reorderLevel || anyLocationLow) {
         lowStockProducts.push({
           id: product.id,
           name: product.name,
