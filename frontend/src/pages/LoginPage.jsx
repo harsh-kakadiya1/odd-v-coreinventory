@@ -8,6 +8,7 @@ const initialSignup = {
   fullName: '',
   email: '',
   password: '',
+  confirmPassword: '',
   role: 'inventory_manager',
 };
 
@@ -22,6 +23,39 @@ const initialReset = {
   newPassword: '',
 };
 
+const signupPasswordChecks = [
+  {
+    key: 'minLength',
+    label: 'Use at least 9 characters',
+    test: (password) => password.length >= 9,
+  },
+  {
+    key: 'hasLower',
+    label: 'Add at least one lowercase letter',
+    test: (password) => /[a-z]/.test(password),
+  },
+  {
+    key: 'hasUpper',
+    label: 'Add at least one uppercase letter',
+    test: (password) => /[A-Z]/.test(password),
+  },
+  {
+    key: 'hasNumber',
+    label: 'Add at least one number',
+    test: (password) => /\d/.test(password),
+  },
+  {
+    key: 'hasSpecial',
+    label: 'Add at least one special character',
+    test: (password) => /[^A-Za-z0-9]/.test(password),
+  },
+];
+
+function getStrengthColor(strengthPercent) {
+  const hue = Math.round((strengthPercent / 100) * 120);
+  return `hsl(${hue} 80% 42%)`;
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -30,10 +64,28 @@ export default function LoginPage() {
   const [loginForm, setLoginForm] = useState(initialLogin);
   const [signupForm, setSignupForm] = useState(initialSignup);
   const [resetForm, setResetForm] = useState(initialReset);
-  const [otpPreview, setOtpPreview] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const passwordCheckResults = signupPasswordChecks.map((rule) => ({
+    ...rule,
+    valid: rule.test(signupForm.password),
+  }));
+  const unmetPasswordChecks = passwordCheckResults.filter((rule) => !rule.valid);
+  const isConfirmMatched =
+    signupForm.confirmPassword.length > 0 && signupForm.password === signupForm.confirmPassword;
+  const unmetConfirmRequirement =
+    signupForm.confirmPassword.length > 0 && !isConfirmMatched
+      ? ['Confirm password must match']
+      : [];
+  const unmetSignupRequirements = [
+    ...unmetPasswordChecks.map((rule) => rule.label),
+    ...unmetConfirmRequirement,
+  ];
+  const fulfilledChecks = passwordCheckResults.filter((rule) => rule.valid).length;
+  const strengthPercent = Math.round((fulfilledChecks / passwordCheckResults.length) * 100);
+  const strengthColor = getStrengthColor(strengthPercent);
 
   async function handleLogin(event) {
     event.preventDefault();
@@ -56,10 +108,23 @@ export default function LoginPage() {
     event.preventDefault();
     setError('');
     setMessage('');
+
+    if (unmetSignupRequirements.length > 0 || !isConfirmMatched) {
+      setError('Please complete the remaining signup requirements.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await api.post('/auth/signup', signupForm);
+      const payload = {
+        fullName: signupForm.fullName,
+        email: signupForm.email,
+        password: signupForm.password,
+        role: signupForm.role,
+      };
+
+      const response = await api.post('/auth/signup', payload);
       login(response.data.token, response.data.user);
       navigate('/dashboard');
     } catch (err) {
@@ -72,11 +137,9 @@ export default function LoginPage() {
   async function handleGenerateOtp() {
     setError('');
     setMessage('');
-    setOtpPreview('');
 
     try {
       const response = await api.post('/auth/request-reset', { email: resetForm.email });
-      setOtpPreview(response.data.otp || '');
       setMessage(response.data.message || 'OTP generated.');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to generate OTP.');
@@ -179,11 +242,41 @@ export default function LoginPage() {
                 <input
                   type="password"
                   required
-                  minLength={6}
+                  minLength={9}
                   value={signupForm.password}
                   onChange={(e) => setSignupForm((p) => ({ ...p, password: e.target.value }))}
                 />
               </label>
+
+              <div className="password-strength" aria-live="polite">
+                <div className="password-strength-head">
+                  <span>Password strength</span>
+                  <strong style={{ color: strengthColor }}>{strengthPercent}%</strong>
+                </div>
+                <div className="password-strength-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={strengthPercent}>
+                  <span className="password-strength-bar" style={{ width: `${strengthPercent}%`, backgroundColor: strengthColor }} />
+                </div>
+              </div>
+
+              <label>
+                Confirm Password
+                <input
+                  type="password"
+                  required
+                  minLength={9}
+                  value={signupForm.confirmPassword}
+                  onChange={(e) => setSignupForm((p) => ({ ...p, confirmPassword: e.target.value }))}
+                />
+              </label>
+
+              {(signupForm.password.length > 0 || signupForm.confirmPassword.length > 0) && unmetSignupRequirements.length > 0 && (
+                <ul className="requirements-list" aria-live="polite">
+                  {unmetSignupRequirements.map((requirement) => (
+                    <li key={requirement}>{requirement}</li>
+                  ))}
+                </ul>
+              )}
+
               <label>
                 Role
                 <select
@@ -194,7 +287,7 @@ export default function LoginPage() {
                   <option value="warehouse_staff">Warehouse Staff</option>
                 </select>
               </label>
-              <button type="submit" disabled={loading}>
+              <button type="submit" disabled={loading || unmetSignupRequirements.length > 0 || !isConfirmMatched}>
                 {loading ? 'Please wait...' : 'Create Account'}
               </button>
             </form>
@@ -214,7 +307,6 @@ export default function LoginPage() {
               <button type="button" className="ghost" onClick={handleGenerateOtp}>
                 Generate OTP
               </button>
-              {otpPreview && <p className="otp-note">Development OTP: {otpPreview}</p>}
               <label>
                 OTP Code
                 <input

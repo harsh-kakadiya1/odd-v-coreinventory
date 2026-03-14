@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
+const nodemailer = require('nodemailer');
 
 dotenv.config();
 
@@ -19,6 +20,30 @@ const app = express();
 const port = Number(process.env.PORT || 4000);
 const jwtSecret = process.env.JWT_SECRET || 'change-me';
 const otpExpiryMinutes = Number(process.env.OTP_EXPIRY_MINUTES || 10);
+const strongPasswordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$/;
+
+const smtpConfig = {
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+  user: process.env.SMTP_USER,
+  pass: process.env.SMTP_PASS,
+  from: process.env.MAIL_FROM || process.env.SMTP_USER,
+};
+
+const smtpReady = Boolean(smtpConfig.host && smtpConfig.port && smtpConfig.user && smtpConfig.pass && smtpConfig.from);
+
+const mailTransport = smtpReady
+  ? nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      auth: {
+        user: smtpConfig.user,
+        pass: smtpConfig.pass,
+      },
+    })
+  : null;
 
 app.use(cors());
 app.use(express.json());
@@ -109,10 +134,25 @@ function unwrapFindOneAndUpdateResult(result) {
   return result && result.value ? result.value : result;
 }
 
+async function sendResetOtpEmail({ to, otp, fullName }) {
+  if (!mailTransport) {
+    throw new Error('SMTP is not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and MAIL_FROM.');
+  }
+
+  const safeName = fullName || 'there';
+  await mailTransport.sendMail({
+    from: smtpConfig.from,
+    to,
+    subject: 'CoreInventory Password Reset OTP',
+    text: `Hello ${safeName},\n\nYour CoreInventory password reset OTP is ${otp}.\nThis OTP is valid for ${otpExpiryMinutes} minutes.\n\nIf you did not request this, please ignore this email.`,
+    html: `<p>Hello ${safeName},</p><p>Your <strong>CoreInventory</strong> password reset OTP is:</p><p style="font-size:22px;font-weight:700;letter-spacing:2px;margin:12px 0;">${otp}</p><p>This OTP is valid for <strong>${otpExpiryMinutes} minutes</strong>.</p><p>If you did not request this, please ignore this email.</p>`,
+  });
+}
+
 const signupSchema = z.object({
   fullName: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(9).regex(strongPasswordRule),
   role: z.enum(['inventory_manager', 'warehouse_staff']).optional(),
 });
 
@@ -133,7 +173,11 @@ app.get('/api/health', async (_req, res) => {
 app.post('/api/auth/signup', async (req, res) => {
   const parsed = signupSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Invalid input', errors: parsed.error.issues });
+    return res.status(400).json({
+      message:
+        'Invalid input. Password must be at least 9 chars and include uppercase, lowercase, number, and special character.',
+      errors: parsed.error.issues,
+    });
   }
 
   const { fullName, email, password, role } = parsed.data;
@@ -234,9 +278,14 @@ app.post('/api/auth/request-reset', async (req, res) => {
       created_at: new Date(),
     });
 
-    return res.json({
-      message: 'OTP generated. In production, send this via email/SMS.',
+    await sendResetOtpEmail({
+      to: user.email,
       otp,
+      fullName: user.full_name,
+    });
+
+    return res.json({
+      message: 'OTP sent to your registered email address.',
       expiresInMinutes: otpExpiryMinutes,
     });
   } catch (error) {
@@ -248,12 +297,15 @@ app.post('/api/auth/reset-password', async (req, res) => {
   const schema = z.object({
     email: z.string().email(),
     otp: z.string().length(6),
-    newPassword: z.string().min(6),
+    newPassword: z.string().min(9).regex(strongPasswordRule),
   });
 
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Invalid payload' });
+    return res.status(400).json({
+      message:
+        'Invalid payload. New password must be at least 9 chars and include uppercase, lowercase, number, and special character.',
+    });
   }
 
   const { email, otp, newPassword } = parsed.data;

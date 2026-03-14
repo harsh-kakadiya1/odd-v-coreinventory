@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../auth-context';
+import heroImage from '../assets/hero.png';
 
 const initialSignup = {
   loginId: '',
@@ -11,7 +12,40 @@ const initialSignup = {
   role: 'inventory_manager',
 };
 
-const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{9,}$/;
+const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$/;
+
+const passwordChecks = [
+  {
+    key: 'minLength',
+    label: 'Use at least 9 characters',
+    test: (password) => password.length >= 9,
+  },
+  {
+    key: 'hasLower',
+    label: 'Add at least one lowercase letter',
+    test: (password) => /[a-z]/.test(password),
+  },
+  {
+    key: 'hasUpper',
+    label: 'Add at least one uppercase letter',
+    test: (password) => /[A-Z]/.test(password),
+  },
+  {
+    key: 'hasNumber',
+    label: 'Add at least one number',
+    test: (password) => /\d/.test(password),
+  },
+  {
+    key: 'hasSpecial',
+    label: 'Add at least one special character',
+    test: (password) => /[^A-Za-z0-9]/.test(password),
+  },
+];
+
+function getStrengthColor(strengthPercent) {
+  const hue = Math.round((strengthPercent / 100) * 120);
+  return `hsl(${hue} 80% 42%)`;
+}
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -20,15 +54,21 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const passwordChecks = {
-    minLength: signupForm.password.length >= 9,
-    hasLower: /[a-z]/.test(signupForm.password),
-    hasUpper: /[A-Z]/.test(signupForm.password),
-    hasSpecial: /[^A-Za-z0-9]/.test(signupForm.password),
-  };
+  const checkResults = passwordChecks.map((rule) => ({
+    ...rule,
+    valid: rule.test(signupForm.password),
+  }));
+  const unmetPasswordChecks = checkResults.filter((rule) => !rule.valid).map((rule) => rule.label);
+  const fulfilledChecks = checkResults.filter((rule) => rule.valid).length;
+  const strengthPercent = Math.round((fulfilledChecks / checkResults.length) * 100);
+  const strengthColor = getStrengthColor(strengthPercent);
 
-  const isPasswordStrong = Object.values(passwordChecks).every(Boolean);
+  const isPasswordStrong = unmetPasswordChecks.length === 0;
   const isConfirmMatched = signupForm.confirmPassword.length > 0 && signupForm.password === signupForm.confirmPassword;
+  const unmetSignupRequirements = [
+    ...unmetPasswordChecks,
+    ...(signupForm.confirmPassword.length > 0 && !isConfirmMatched ? ['Confirm password must match'] : []),
+  ];
 
   async function handleSignup(event) {
     event.preventDefault();
@@ -40,7 +80,7 @@ export default function SignupPage() {
     }
 
     if (!passwordRule.test(signupForm.password)) {
-      setError('Password must contain lowercase, uppercase, special character and be more than 8 characters.');
+      setError('Password must contain lowercase, uppercase, number, special character and be more than 8 characters.');
       return;
     }
 
@@ -69,7 +109,7 @@ export default function SignupPage() {
     <div className="auth-wrap">
       <div className="auth-split">
         <section className="auth-visual" aria-hidden="true">
-          <img src={require('../assets/hero.png')} alt="Inventory illustration" />
+          <img src={heroImage} alt="Inventory illustration" />
           <div className="auth-visual-copy">
             <h2>Inventory Management</h2>
             <p>Create an account to manage warehouses, stock, and movements.</p>
@@ -115,6 +155,16 @@ export default function SignupPage() {
                 />
               </label>
 
+              <div className="password-strength" aria-live="polite">
+                <div className="password-strength-head">
+                  <span>Password strength</span>
+                  <strong style={{ color: strengthColor }}>{strengthPercent}%</strong>
+                </div>
+                <div className="password-strength-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={strengthPercent}>
+                  <span className="password-strength-bar" style={{ width: `${strengthPercent}%`, backgroundColor: strengthColor }} />
+                </div>
+              </div>
+
               <label>
                 Re-Enter Password
                 <input
@@ -125,6 +175,14 @@ export default function SignupPage() {
                   onChange={(e) => setSignupForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
                 />
               </label>
+
+              {(signupForm.password.length > 0 || signupForm.confirmPassword.length > 0) && unmetSignupRequirements.length > 0 && (
+                <ul className="requirements-list" aria-live="polite">
+                  {unmetSignupRequirements.map((requirement) => (
+                    <li key={requirement}>{requirement}</li>
+                  ))}
+                </ul>
+              )}
 
               <label>
                 Role
@@ -138,13 +196,11 @@ export default function SignupPage() {
                 </select>
               </label>
 
-              <button type="submit" disabled={loading || !isPasswordStrong || !isConfirmMatched}>
+              <button type="submit" disabled={loading || unmetSignupRequirements.length > 0 || !isConfirmMatched}>
                 {loading ? 'Please wait...' : 'Sign Up'}
               </button>
 
-              {(!isPasswordStrong || !isConfirmMatched) && (
-                <p className="error-inline">Complete the password requirements to continue.</p>
-              )}
+              {(!isPasswordStrong || !isConfirmMatched) && <p className="error-inline">Complete the password requirements to continue.</p>}
             </form>
 
             <div className="auth-links auth-links-center">

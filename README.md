@@ -10,7 +10,7 @@ CoreInventory is a modular Inventory Management System with:
 
 - Authentication:
   - Signup / Login
-  - OTP based password reset (development OTP preview)
+  - OTP based password reset via email (Nodemailer + SMTP)
 - Dashboard KPIs:
   - Total products in stock
   - Low stock / out of stock
@@ -76,6 +76,25 @@ npm run dev
 
 Backend runs on `http://localhost:4000`.
 
+### SMTP setup for OTP email
+
+Create `backend/.env` with:
+
+```bash
+PORT=4000
+JWT_SECRET=replace-with-strong-secret
+OTP_EXPIRY_MINUTES=10
+
+SMTP_HOST=smtp.yourprovider.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-user
+SMTP_PASS=your-smtp-password
+MAIL_FROM="CoreInventory <no-reply@yourdomain.com>"
+```
+
+If SMTP credentials are missing or invalid, OTP email delivery will fail and `/api/auth/request-reset` will return an error.
+
 ### 5) Start frontend
 
 ```bash
@@ -106,5 +125,5 @@ Frontend runs on `http://localhost:5173` and proxies API requests to backend.
 
 ## Notes
 
-- OTP is returned in API response for development convenience.
-- For production, wire OTP to email/SMS and secure secrets.
+- OTP is not returned in API response.
+- Password policy for signup/reset: minimum 9 characters with uppercase, lowercase, number, and special character.
