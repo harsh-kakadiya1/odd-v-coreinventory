@@ -4,7 +4,7 @@ CoreInventory is a modular Inventory Management System with:
 
 - React frontend
 - Node.js + Express backend
-- PostgreSQL database
+- MongoDB database
 
 ## Features Implemented
 
@@ -37,12 +37,12 @@ CoreInventory is a modular Inventory Management System with:
 ## Project Structure
 
 - `frontend/` - React app
-- `backend/` - Express API and SQL schema
-- `docker-compose.yml` - PostgreSQL container
+- `backend/` - Express API and MongoDB setup script
+- `docker-compose.yml` - MongoDB container
 
 ## Run Locally
 
-### 1) Start PostgreSQL
+### 1) Start MongoDB
 
 Use Docker:
 
@@ -50,7 +50,7 @@ Use Docker:
 docker compose up -d
 ```
 
-### 2) Initialize database schema
+### 2) Initialize database indexes and defaults
 
 ```bash
 cd backend

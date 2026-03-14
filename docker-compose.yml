@@ -1,17 +1,16 @@
 version: '3.9'
 services:
-  postgres:
-    image: postgres:16
-    container_name: coreinventory-postgres
+  mongodb:
+    image: mongo:7
+    container_name: coreinventory-mongodb
     restart: unless-stopped
     environment:
-      POSTGRES_DB: coreinventory
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mongodb_data:/data/db
 
 volumes:
-  postgres_data:
+  mongodb_data:

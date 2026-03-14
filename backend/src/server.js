@@ -7,7 +7,13 @@ const { z } = require('zod');
 
 dotenv.config();
 
-const { pool, query } = require('./db');
+const {
+  connectToDatabase,
+  ensureDatabaseSetup,
+  getCollection,
+  getDb,
+  getNextSequence,
+} = require('./db');
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -42,84 +48,65 @@ function authMiddleware(req, res, next) {
 }
 
 async function ensureDefaults() {
-  const warehouse = await query(
-    `INSERT INTO warehouses (name)
-     VALUES ('Main Warehouse')
-     ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-     RETURNING id`
-  );
+  const warehouseCollection = getCollection('warehouses');
+  const locationCollection = getCollection('locations');
 
-  await query(
-    `INSERT INTO locations (warehouse_id, name)
-     VALUES ($1, 'Stock')
-     ON CONFLICT (warehouse_id, name) DO UPDATE SET name = EXCLUDED.name`,
-    [warehouse.rows[0].id]
-  );
+  let warehouse = await warehouseCollection.findOne({ name: 'Main Warehouse' });
+  if (!warehouse) {
+    warehouse = {
+      id: await getNextSequence('warehouses'),
+      name: 'Main Warehouse',
+      created_at: new Date(),
+    };
+    await warehouseCollection.insertOne(warehouse);
+  }
+
+  const stockLocation = await locationCollection.findOne({ warehouse_id: warehouse.id, name: 'Stock' });
+  if (!stockLocation) {
+    await locationCollection.insertOne({
+      id: await getNextSequence('locations'),
+      warehouse_id: warehouse.id,
+      name: 'Stock',
+      created_at: new Date(),
+    });
+  }
 }
 
-async function getStockAtLocation(client, productId, locationId) {
-  const result = await client.query(
-    `SELECT quantity
-     FROM stock_balances
-     WHERE product_id = $1 AND location_id = $2`,
-    [productId, locationId]
-  );
-
-  return result.rows.length ? Number(result.rows[0].quantity) : 0;
+async function getStockAtLocation(productId, locationId) {
+  const entry = await getCollection('stock_balances').findOne({
+    product_id: Number(productId),
+    location_id: Number(locationId),
+  });
+  return entry ? Number(entry.quantity) : 0;
 }
 
-async function updateStock(client, productId, locationId, delta) {
+async function updateStock(productId, locationId, delta) {
   if (!locationId) {
     return;
   }
 
-  await client.query(
-    `INSERT INTO stock_balances (product_id, location_id, quantity)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (product_id, location_id)
-     DO UPDATE SET
-       quantity = stock_balances.quantity + EXCLUDED.quantity,
-       updated_at = NOW()`,
-    [productId, locationId, delta]
+  await getCollection('stock_balances').updateOne(
+    { product_id: Number(productId), location_id: Number(locationId) },
+    {
+      $inc: { quantity: Number(delta) },
+      $set: { updated_at: new Date() },
+      $setOnInsert: { created_at: new Date() },
+    },
+    { upsert: true }
   );
 }
 
-function createFilters(req) {
-  const filters = [];
-  const values = [];
-
-  if (req.query.documentType) {
-    values.push(req.query.documentType);
-    filters.push(`o.operation_type = $${values.length}`);
-  }
-  if (req.query.status) {
-    values.push(req.query.status);
-    filters.push(`o.status = $${values.length}`);
-  }
-  if (req.query.warehouseId) {
-    values.push(Number(req.query.warehouseId));
-    filters.push(`(wl_from.warehouse_id = $${values.length} OR wl_to.warehouse_id = $${values.length})`);
-  }
-  if (req.query.locationId) {
-    values.push(Number(req.query.locationId));
-    filters.push(`(o.from_location_id = $${values.length} OR o.to_location_id = $${values.length})`);
-  }
-  if (req.query.categoryId) {
-    values.push(Number(req.query.categoryId));
-    filters.push(
-      `EXISTS (
-         SELECT 1
-         FROM operation_lines ol
-         JOIN products p ON p.id = ol.product_id
-         WHERE ol.operation_id = o.id AND p.category_id = $${values.length}
-      )`
-    );
+function stripMongoMeta(doc) {
+  if (!doc) {
+    return doc;
   }
 
-  return {
-    whereClause: filters.length ? `WHERE ${filters.join(' AND ')}` : '',
-    values,
-  };
+  const { _id, ...rest } = doc;
+  return rest;
+}
+
+function unwrapFindOneAndUpdateResult(result) {
+  return result && result.value ? result.value : result;
 }
 
 const signupSchema = z.object({
@@ -136,7 +123,7 @@ const loginSchema = z.object({
 
 app.get('/api/health', async (_req, res) => {
   try {
-    await query('SELECT 1');
+    await getDb().command({ ping: 1 });
     return res.json({ status: 'ok' });
   } catch (error) {
     return res.status(500).json({ status: 'error', message: error.message });
@@ -152,21 +139,36 @@ app.post('/api/auth/signup', async (req, res) => {
   const { fullName, email, password, role } = parsed.data;
 
   try {
-    const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
-    if (existing.rows.length) {
+    const normalizedEmail = email.toLowerCase();
+    const users = getCollection('users');
+
+    const existing = await users.findOne({ email: normalizedEmail });
+    if (existing) {
       return res.status(409).json({ message: 'Email already registered' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const result = await query(
-      `INSERT INTO users (full_name, email, password_hash, role)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, full_name, email, role`,
-      [fullName, email.toLowerCase(), passwordHash, role || 'inventory_manager']
-    );
 
-    const token = createToken(result.rows[0]);
-    return res.status(201).json({ token, user: result.rows[0] });
+    const newUser = {
+      id: await getNextSequence('users'),
+      full_name: fullName,
+      email: normalizedEmail,
+      password_hash: passwordHash,
+      role: role || 'inventory_manager',
+      created_at: new Date(),
+    };
+
+    await users.insertOne(newUser);
+
+    const responseUser = {
+      id: newUser.id,
+      full_name: newUser.full_name,
+      email: newUser.email,
+      role: newUser.role,
+    };
+
+    const token = createToken(responseUser);
+    return res.status(201).json({ token, user: responseUser });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to sign up', detail: error.message });
   }
@@ -181,12 +183,11 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = parsed.data;
 
   try {
-    const result = await query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
-    if (!result.rows.length) {
+    const user = await getCollection('users').findOne({ email: email.toLowerCase() });
+    if (!user) {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    const user = result.rows[0];
     const matches = await bcrypt.compare(password, user.password_hash);
     if (!matches) {
       return res.status(401).json({ message: 'Invalid email or password' });
@@ -216,19 +217,22 @@ app.post('/api/auth/request-reset', async (req, res) => {
   }
 
   try {
-    const userResult = await query('SELECT id, email FROM users WHERE email = $1', [parsed.data.email.toLowerCase()]);
-    if (!userResult.rows.length) {
+    const user = await getCollection('users').findOne({ email: parsed.data.email.toLowerCase() });
+    if (!user) {
       return res.json({ message: 'If the account exists, OTP has been generated.' });
     }
 
-    const user = userResult.rows[0];
     const otp = String(Math.floor(100000 + Math.random() * 900000));
 
-    await query(
-      `INSERT INTO password_reset_otps (user_id, otp_code, expires_at)
-       VALUES ($1, $2, NOW() + ($3::text || ' minutes')::INTERVAL)`,
-      [user.id, otp, otpExpiryMinutes]
-    );
+    const expiresAt = new Date(Date.now() + otpExpiryMinutes * 60 * 1000);
+    await getCollection('password_reset_otps').insertOne({
+      id: await getNextSequence('password_reset_otps'),
+      user_id: user.id,
+      otp_code: otp,
+      expires_at: expiresAt,
+      used: false,
+      created_at: new Date(),
+    });
 
     return res.json({
       message: 'OTP generated. In production, send this via email/SMS.',
@@ -255,32 +259,29 @@ app.post('/api/auth/reset-password', async (req, res) => {
   const { email, otp, newPassword } = parsed.data;
 
   try {
-    const userResult = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
-    if (!userResult.rows.length) {
+    const user = await getCollection('users').findOne({ email: email.toLowerCase() });
+    if (!user) {
       return res.status(404).json({ message: 'Account not found' });
     }
 
-    const userId = userResult.rows[0].id;
-    const otpResult = await query(
-      `SELECT id
-       FROM password_reset_otps
-       WHERE user_id = $1
-         AND otp_code = $2
-         AND used = FALSE
-         AND expires_at > NOW()
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [userId, otp]
+    const otpRecord = await getCollection('password_reset_otps').findOne(
+      {
+        user_id: user.id,
+        otp_code: otp,
+        used: false,
+        expires_at: { $gt: new Date() },
+      },
+      { sort: { created_at: -1 } }
     );
 
-    if (!otpResult.rows.length) {
+    if (!otpRecord) {
       return res.status(400).json({ message: 'Invalid or expired OTP' });
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    await query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
-    await query('UPDATE password_reset_otps SET used = TRUE WHERE id = $1', [otpResult.rows[0].id]);
+    await getCollection('users').updateOne({ id: user.id }, { $set: { password_hash: passwordHash } });
+    await getCollection('password_reset_otps').updateOne({ id: otpRecord.id }, { $set: { used: true } });
 
     return res.json({ message: 'Password reset successful' });
   } catch (error) {
@@ -290,12 +291,16 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
-    const result = await query('SELECT id, full_name, email, role, created_at FROM users WHERE id = $1', [req.user.id]);
-    if (!result.rows.length) {
+    const user = await getCollection('users').findOne(
+      { id: Number(req.user.id) },
+      { projection: { _id: 0, id: 1, full_name: 1, email: 1, role: 1, created_at: 1 } }
+    );
+
+    if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    return res.json(result.rows[0]);
+    return res.json(user);
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch profile', detail: error.message });
   }
@@ -303,43 +308,66 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
 
 app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
   try {
-    const stockResult = await query(
-      `SELECT
-         COUNT(DISTINCT CASE WHEN total_qty > 0 THEN p.id END) AS total_products_in_stock,
-         COUNT(CASE WHEN total_qty <= p.reorder_level AND total_qty > 0 THEN 1 END) AS low_stock_items,
-         COUNT(CASE WHEN total_qty <= 0 THEN 1 END) AS out_of_stock_items
-       FROM products p
-       LEFT JOIN (
-         SELECT product_id, SUM(quantity) AS total_qty
-         FROM stock_balances
-         GROUP BY product_id
-       ) sb ON sb.product_id = p.id`
-    );
+    const [products, stockBalances, operations] = await Promise.all([
+      getCollection('products').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('stock_balances').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('operations').find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
 
-    const opResult = await query(
-      `SELECT
-         COUNT(CASE WHEN operation_type = 'receipt' AND status IN ('draft', 'waiting', 'ready') THEN 1 END) AS pending_receipts,
-         COUNT(CASE WHEN operation_type = 'delivery' AND status IN ('draft', 'waiting', 'ready') THEN 1 END) AS pending_deliveries,
-         COUNT(CASE WHEN operation_type = 'internal' AND status IN ('draft', 'waiting', 'ready') THEN 1 END) AS internal_transfers_scheduled
-       FROM operations`
-    );
+    const stockByProduct = new Map();
+    for (const stock of stockBalances) {
+      const key = Number(stock.product_id);
+      const current = stockByProduct.get(key) || 0;
+      stockByProduct.set(key, current + Number(stock.quantity || 0));
+    }
 
-    const recentOperations = await query(
-      `SELECT
-         o.id,
-         o.operation_type,
-         o.status,
-         COALESCE(o.reference_code, CONCAT('OP-', o.id)) AS reference,
-         o.created_at
-       FROM operations o
-       ORDER BY o.created_at DESC
-       LIMIT 10`
-    );
+    let totalProductsInStock = 0;
+    let lowStockItems = 0;
+    let outOfStockItems = 0;
+
+    for (const product of products) {
+      const totalQty = Number(stockByProduct.get(product.id) || 0);
+      if (totalQty > 0) {
+        totalProductsInStock += 1;
+      }
+      if (totalQty > 0 && totalQty <= Number(product.reorder_level || 0)) {
+        lowStockItems += 1;
+      }
+      if (totalQty <= 0) {
+        outOfStockItems += 1;
+      }
+    }
+
+    const pendingStates = new Set(['draft', 'waiting', 'ready']);
+    const pendingReceipts = operations.filter(
+      (op) => op.operation_type === 'receipt' && pendingStates.has(op.status)
+    ).length;
+    const pendingDeliveries = operations.filter(
+      (op) => op.operation_type === 'delivery' && pendingStates.has(op.status)
+    ).length;
+    const internalTransfersScheduled = operations.filter(
+      (op) => op.operation_type === 'internal' && pendingStates.has(op.status)
+    ).length;
+
+    const recentOperations = [...operations]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 10)
+      .map((op) => ({
+        id: op.id,
+        operation_type: op.operation_type,
+        status: op.status,
+        reference: op.reference_code || `OP-${op.id}`,
+        created_at: op.created_at,
+      }));
 
     return res.json({
-      ...stockResult.rows[0],
-      ...opResult.rows[0],
-      recentOperations: recentOperations.rows,
+      total_products_in_stock: totalProductsInStock,
+      low_stock_items: lowStockItems,
+      out_of_stock_items: outOfStockItems,
+      pending_receipts: pendingReceipts,
+      pending_deliveries: pendingDeliveries,
+      internal_transfers_scheduled: internalTransfersScheduled,
+      recentOperations,
     });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to load dashboard', detail: error.message });
@@ -348,8 +376,11 @@ app.get('/api/dashboard/kpis', authMiddleware, async (req, res) => {
 
 app.get('/api/categories', authMiddleware, async (_req, res) => {
   try {
-    const result = await query('SELECT id, name FROM categories ORDER BY name ASC');
-    return res.json(result.rows);
+    const categories = await getCollection('categories')
+      .find({}, { projection: { _id: 0, id: 1, name: 1 } })
+      .sort({ name: 1 })
+      .toArray();
+    return res.json(categories);
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch categories', detail: error.message });
   }
@@ -363,14 +394,20 @@ app.post('/api/categories', authMiddleware, async (req, res) => {
   }
 
   try {
-    const result = await query(
-      `INSERT INTO categories (name)
-       VALUES ($1)
-       ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-       RETURNING id, name`,
-      [parsed.data.name.trim()]
-    );
-    return res.status(201).json(result.rows[0]);
+    const name = parsed.data.name.trim();
+    const categories = getCollection('categories');
+    let category = await categories.findOne({ name }, { projection: { _id: 0, id: 1, name: 1 } });
+
+    if (!category) {
+      category = {
+        id: await getNextSequence('categories'),
+        name,
+        created_at: new Date(),
+      };
+      await categories.insertOne(category);
+    }
+
+    return res.status(201).json({ id: category.id, name: category.name });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create category', detail: error.message });
   }
@@ -378,8 +415,12 @@ app.post('/api/categories', authMiddleware, async (req, res) => {
 
 app.get('/api/warehouses', authMiddleware, async (_req, res) => {
   try {
-    const result = await query('SELECT id, name FROM warehouses ORDER BY created_at ASC');
-    return res.json(result.rows);
+    const warehouses = await getCollection('warehouses')
+      .find({}, { projection: { _id: 0, id: 1, name: 1, created_at: 1 } })
+      .sort({ created_at: 1 })
+      .toArray();
+
+    return res.json(warehouses.map((row) => ({ id: row.id, name: row.name })));
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch warehouses', detail: error.message });
   }
@@ -393,14 +434,20 @@ app.post('/api/warehouses', authMiddleware, async (req, res) => {
   }
 
   try {
-    const result = await query(
-      `INSERT INTO warehouses (name)
-       VALUES ($1)
-       ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
-       RETURNING id, name`,
-      [parsed.data.name.trim()]
-    );
-    return res.status(201).json(result.rows[0]);
+    const name = parsed.data.name.trim();
+    const warehouses = getCollection('warehouses');
+    let warehouse = await warehouses.findOne({ name }, { projection: { _id: 0, id: 1, name: 1 } });
+
+    if (!warehouse) {
+      warehouse = {
+        id: await getNextSequence('warehouses'),
+        name,
+        created_at: new Date(),
+      };
+      await warehouses.insertOne(warehouse);
+    }
+
+    return res.status(201).json({ id: warehouse.id, name: warehouse.name });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create warehouse', detail: error.message });
   }
@@ -408,13 +455,28 @@ app.post('/api/warehouses', authMiddleware, async (req, res) => {
 
 app.get('/api/locations', authMiddleware, async (_req, res) => {
   try {
-    const result = await query(
-      `SELECT l.id, l.name, l.warehouse_id, w.name AS warehouse_name
-       FROM locations l
-       JOIN warehouses w ON w.id = l.warehouse_id
-       ORDER BY w.name, l.name`
-    );
-    return res.json(result.rows);
+    const [locations, warehouses] = await Promise.all([
+      getCollection('locations').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('warehouses').find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
+
+    const warehouseNameById = new Map(warehouses.map((w) => [w.id, w.name]));
+    const rows = locations
+      .map((loc) => ({
+        id: loc.id,
+        name: loc.name,
+        warehouse_id: loc.warehouse_id,
+        warehouse_name: warehouseNameById.get(loc.warehouse_id) || null,
+      }))
+      .sort((a, b) => {
+        const w = (a.warehouse_name || '').localeCompare(b.warehouse_name || '');
+        if (w !== 0) {
+          return w;
+        }
+        return a.name.localeCompare(b.name);
+      });
+
+    return res.json(rows);
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch locations', detail: error.message });
   }
@@ -422,7 +484,7 @@ app.get('/api/locations', authMiddleware, async (_req, res) => {
 
 app.post('/api/locations', authMiddleware, async (req, res) => {
   const schema = z.object({
-    warehouseId: z.number().int().positive(),
+    warehouseId: z.coerce.number().int().positive(),
     name: z.string().min(2),
   });
   const parsed = schema.safeParse(req.body);
@@ -431,56 +493,75 @@ app.post('/api/locations', authMiddleware, async (req, res) => {
   }
 
   try {
-    const result = await query(
-      `INSERT INTO locations (warehouse_id, name)
-       VALUES ($1, $2)
-       ON CONFLICT (warehouse_id, name) DO UPDATE SET name = EXCLUDED.name
-       RETURNING id, warehouse_id, name`,
-      [parsed.data.warehouseId, parsed.data.name.trim()]
-    );
+    const name = parsed.data.name.trim();
+    const warehouseId = Number(parsed.data.warehouseId);
+    const locations = getCollection('locations');
 
-    return res.status(201).json(result.rows[0]);
+    let location = await locations.findOne({ warehouse_id: warehouseId, name }, { projection: { _id: 0 } });
+
+    if (!location) {
+      location = {
+        id: await getNextSequence('locations'),
+        warehouse_id: warehouseId,
+        name,
+        created_at: new Date(),
+      };
+      await locations.insertOne(location);
+    }
+
+    return res.status(201).json({
+      id: location.id,
+      warehouse_id: location.warehouse_id,
+      name: location.name,
+    });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create location', detail: error.message });
   }
 });
 
 app.get('/api/products', authMiddleware, async (req, res) => {
-  const values = [];
-  const filters = [];
-
-  if (req.query.search) {
-    values.push(`%${req.query.search}%`);
-    filters.push(`(p.name ILIKE $${values.length} OR p.sku ILIKE $${values.length})`);
-  }
-  if (req.query.categoryId) {
-    values.push(Number(req.query.categoryId));
-    filters.push(`p.category_id = $${values.length}`);
-  }
-
-  const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-
   try {
-    const result = await query(
-      `SELECT
-         p.id,
-         p.name,
-         p.sku,
-         p.category_id,
-         c.name AS category_name,
-         p.unit_of_measure,
-         p.reorder_level,
-         COALESCE(SUM(sb.quantity), 0) AS total_stock
-       FROM products p
-       LEFT JOIN categories c ON c.id = p.category_id
-       LEFT JOIN stock_balances sb ON sb.product_id = p.id
-       ${whereClause}
-       GROUP BY p.id, c.name
-       ORDER BY p.created_at DESC`,
-      values
-    );
+    let products = await getCollection('products').find({}, { projection: { _id: 0 } }).toArray();
+    const [categories, stockBalances] = await Promise.all([
+      getCollection('categories').find({}, { projection: { _id: 0, id: 1, name: 1 } }).toArray(),
+      getCollection('stock_balances').find({}, { projection: { _id: 0 } }).toArray(),
+    ]);
 
-    return res.json(result.rows);
+    if (req.query.search) {
+      const search = String(req.query.search).toLowerCase();
+      products = products.filter(
+        (p) => String(p.name || '').toLowerCase().includes(search) || String(p.sku || '').toLowerCase().includes(search)
+      );
+    }
+
+    if (req.query.categoryId) {
+      const categoryId = Number(req.query.categoryId);
+      products = products.filter((p) => Number(p.category_id) === categoryId);
+    }
+
+    const categoryById = new Map(categories.map((c) => [c.id, c.name]));
+    const stockByProduct = new Map();
+
+    for (const stock of stockBalances) {
+      const key = Number(stock.product_id);
+      const current = stockByProduct.get(key) || 0;
+      stockByProduct.set(key, current + Number(stock.quantity || 0));
+    }
+
+    const rows = products
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .map((product) => ({
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        category_id: product.category_id || null,
+        category_name: product.category_id ? categoryById.get(product.category_id) || null : null,
+        unit_of_measure: product.unit_of_measure,
+        reorder_level: Number(product.reorder_level || 0),
+        total_stock: Number(stockByProduct.get(product.id) || 0),
+      }));
+
+    return res.json(rows);
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch products', detail: error.message });
   }
@@ -488,21 +569,36 @@ app.get('/api/products', authMiddleware, async (req, res) => {
 
 app.get('/api/products/:id/availability', authMiddleware, async (req, res) => {
   try {
-    const result = await query(
-      `SELECT
-         l.id AS location_id,
-         l.name AS location_name,
-         w.id AS warehouse_id,
-         w.name AS warehouse_name,
-         COALESCE(sb.quantity, 0) AS quantity
-       FROM locations l
-       JOIN warehouses w ON w.id = l.warehouse_id
-       LEFT JOIN stock_balances sb ON sb.location_id = l.id AND sb.product_id = $1
-       ORDER BY w.name, l.name`,
-      [Number(req.params.id)]
-    );
+    const productId = Number(req.params.id);
+    const [locations, warehouses, stockBalances] = await Promise.all([
+      getCollection('locations').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('warehouses').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('stock_balances').find({ product_id: productId }, { projection: { _id: 0 } }).toArray(),
+    ]);
 
-    return res.json(result.rows);
+    const warehouseById = new Map(warehouses.map((w) => [w.id, w]));
+    const stockByLocation = new Map(stockBalances.map((s) => [s.location_id, Number(s.quantity || 0)]));
+
+    const rows = locations
+      .map((loc) => {
+        const warehouse = warehouseById.get(loc.warehouse_id);
+        return {
+          location_id: loc.id,
+          location_name: loc.name,
+          warehouse_id: warehouse ? warehouse.id : null,
+          warehouse_name: warehouse ? warehouse.name : null,
+          quantity: Number(stockByLocation.get(loc.id) || 0),
+        };
+      })
+      .sort((a, b) => {
+        const w = String(a.warehouse_name || '').localeCompare(String(b.warehouse_name || ''));
+        if (w !== 0) {
+          return w;
+        }
+        return String(a.location_name || '').localeCompare(String(b.location_name || ''));
+      });
+
+    return res.json(rows);
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch product availability', detail: error.message });
   }
@@ -512,11 +608,11 @@ app.post('/api/products', authMiddleware, async (req, res) => {
   const schema = z.object({
     name: z.string().min(2),
     sku: z.string().min(2),
-    categoryId: z.number().int().positive().optional().nullable(),
+    categoryId: z.coerce.number().int().positive().optional().nullable(),
     unitOfMeasure: z.string().min(1),
-    reorderLevel: z.number().min(0).optional(),
-    initialStock: z.number().optional(),
-    initialLocationId: z.number().int().positive().optional(),
+    reorderLevel: z.coerce.number().min(0).optional(),
+    initialStock: z.coerce.number().optional(),
+    initialLocationId: z.coerce.number().int().positive().optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -525,43 +621,54 @@ app.post('/api/products', authMiddleware, async (req, res) => {
   }
 
   const data = parsed.data;
-  const client = await pool.connect();
 
   try {
-    await client.query('BEGIN');
-
-    const productResult = await client.query(
-      `INSERT INTO products (name, sku, category_id, unit_of_measure, reorder_level)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, name, sku, category_id, unit_of_measure, reorder_level`,
-      [
-        data.name.trim(),
-        data.sku.trim().toUpperCase(),
-        data.categoryId || null,
-        data.unitOfMeasure.trim(),
-        data.reorderLevel || 0,
-      ]
-    );
-
-    const product = productResult.rows[0];
-
-    if (data.initialStock && data.initialStock !== 0 && data.initialLocationId) {
-      await updateStock(client, product.id, data.initialLocationId, data.initialStock);
-
-      await client.query(
-        `INSERT INTO stock_ledger (operation_id, product_id, move_type, to_location_id, quantity, notes, created_by)
-         VALUES (NULL, $1, 'adjustment', $2, $3, $4, $5)`,
-        [product.id, data.initialLocationId, data.initialStock, 'Initial stock', req.user.id]
-      );
+    const normalizedSku = data.sku.trim().toUpperCase();
+    const products = getCollection('products');
+    const existing = await products.findOne({ sku: normalizedSku });
+    if (existing) {
+      return res.status(409).json({ message: 'SKU already exists' });
     }
 
-    await client.query('COMMIT');
-    return res.status(201).json(product);
+    const product = {
+      id: await getNextSequence('products'),
+      name: data.name.trim(),
+      sku: normalizedSku,
+      category_id: data.categoryId || null,
+      unit_of_measure: data.unitOfMeasure.trim(),
+      reorder_level: Number(data.reorderLevel || 0),
+      created_at: new Date(),
+    };
+
+    await products.insertOne(product);
+
+    if (data.initialStock && data.initialStock !== 0 && data.initialLocationId) {
+      await updateStock(product.id, data.initialLocationId, data.initialStock);
+
+      await getCollection('stock_ledger').insertOne({
+        id: await getNextSequence('stock_ledger'),
+        operation_id: null,
+        product_id: product.id,
+        move_type: 'adjustment',
+        from_location_id: null,
+        to_location_id: data.initialLocationId,
+        quantity: Number(data.initialStock),
+        notes: 'Initial stock',
+        created_by: Number(req.user.id),
+        created_at: new Date(),
+      });
+    }
+
+    return res.status(201).json({
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      category_id: product.category_id,
+      unit_of_measure: product.unit_of_measure,
+      reorder_level: product.reorder_level,
+    });
   } catch (error) {
-    await client.query('ROLLBACK');
     return res.status(500).json({ message: 'Failed to create product', detail: error.message });
-  } finally {
-    client.release();
   }
 });
 
@@ -569,9 +676,9 @@ app.put('/api/products/:id', authMiddleware, async (req, res) => {
   const schema = z.object({
     name: z.string().min(2),
     sku: z.string().min(2),
-    categoryId: z.number().int().positive().optional().nullable(),
+    categoryId: z.coerce.number().int().positive().optional().nullable(),
     unitOfMeasure: z.string().min(1),
-    reorderLevel: z.number().min(0),
+    reorderLevel: z.coerce.number().min(0),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -580,30 +687,43 @@ app.put('/api/products/:id', authMiddleware, async (req, res) => {
   }
 
   try {
-    const result = await query(
-      `UPDATE products
-       SET name = $1,
-           sku = $2,
-           category_id = $3,
-           unit_of_measure = $4,
-           reorder_level = $5
-       WHERE id = $6
-       RETURNING id, name, sku, category_id, unit_of_measure, reorder_level`,
-      [
-        parsed.data.name.trim(),
-        parsed.data.sku.trim().toUpperCase(),
-        parsed.data.categoryId || null,
-        parsed.data.unitOfMeasure.trim(),
-        parsed.data.reorderLevel,
-        Number(req.params.id),
-      ]
-    );
+    const productId = Number(req.params.id);
+    const sku = parsed.data.sku.trim().toUpperCase();
 
-    if (!result.rows.length) {
+    const products = getCollection('products');
+    const existingWithSku = await products.findOne({ sku, id: { $ne: productId } });
+    if (existingWithSku) {
+      return res.status(409).json({ message: 'SKU already exists' });
+    }
+
+    const updateResult = await products.findOneAndUpdate(
+      { id: productId },
+      {
+        $set: {
+          name: parsed.data.name.trim(),
+          sku,
+          category_id: parsed.data.categoryId || null,
+          unit_of_measure: parsed.data.unitOfMeasure.trim(),
+          reorder_level: Number(parsed.data.reorderLevel),
+        },
+      },
+      { returnDocument: 'after', projection: { _id: 0 } }
+    );
+    const updatedProduct = unwrapFindOneAndUpdateResult(updateResult);
+
+    if (!updatedProduct) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    return res.json(result.rows[0]);
+    const row = updatedProduct;
+    return res.json({
+      id: row.id,
+      name: row.name,
+      sku: row.sku,
+      category_id: row.category_id,
+      unit_of_measure: row.unit_of_measure,
+      reorder_level: row.reorder_level,
+    });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to update product', detail: error.message });
   }
@@ -611,38 +731,88 @@ app.put('/api/products/:id', authMiddleware, async (req, res) => {
 
 app.get('/api/operations', authMiddleware, async (req, res) => {
   try {
-    const { whereClause, values } = createFilters(req);
+    let operations = await getCollection('operations').find({}, { projection: { _id: 0 } }).toArray();
+    const [lines, locations, products] = await Promise.all([
+      getCollection('operation_lines').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('locations').find({}, { projection: { _id: 0 } }).toArray(),
+      getCollection('products').find({}, { projection: { _id: 0, id: 1, category_id: 1 } }).toArray(),
+    ]);
 
-    const result = await query(
-      `SELECT
-         o.id,
-         o.operation_type,
-         o.status,
-         o.reference_code,
-         o.supplier_name,
-         o.customer_name,
-         o.from_location_id,
-         o.to_location_id,
-         o.scheduled_at,
-         o.validated_at,
-         o.created_at,
-         lf.name AS from_location_name,
-         lt.name AS to_location_name,
-         COUNT(ol.id) AS line_count,
-         COALESCE(SUM(ol.quantity), 0) AS total_quantity
-       FROM operations o
-       LEFT JOIN operation_lines ol ON ol.operation_id = o.id
-       LEFT JOIN locations lf ON lf.id = o.from_location_id
-       LEFT JOIN locations lt ON lt.id = o.to_location_id
-       LEFT JOIN locations wl_from ON wl_from.id = o.from_location_id
-       LEFT JOIN locations wl_to ON wl_to.id = o.to_location_id
-       ${whereClause}
-       GROUP BY o.id, lf.name, lt.name
-       ORDER BY o.created_at DESC`,
-      values
-    );
+    const locationById = new Map(locations.map((loc) => [loc.id, loc]));
+    const productById = new Map(products.map((p) => [p.id, p]));
 
-    return res.json(result.rows);
+    const linesByOperation = new Map();
+    for (const line of lines) {
+      const key = line.operation_id;
+      if (!linesByOperation.has(key)) {
+        linesByOperation.set(key, []);
+      }
+      linesByOperation.get(key).push(line);
+    }
+
+    if (req.query.documentType) {
+      operations = operations.filter((op) => op.operation_type === req.query.documentType);
+    }
+
+    if (req.query.status) {
+      operations = operations.filter((op) => op.status === req.query.status);
+    }
+
+    if (req.query.warehouseId) {
+      const warehouseId = Number(req.query.warehouseId);
+      operations = operations.filter((op) => {
+        const from = locationById.get(op.from_location_id);
+        const to = locationById.get(op.to_location_id);
+        return (from && from.warehouse_id === warehouseId) || (to && to.warehouse_id === warehouseId);
+      });
+    }
+
+    if (req.query.locationId) {
+      const locationId = Number(req.query.locationId);
+      operations = operations.filter(
+        (op) => Number(op.from_location_id) === locationId || Number(op.to_location_id) === locationId
+      );
+    }
+
+    if (req.query.categoryId) {
+      const categoryId = Number(req.query.categoryId);
+      operations = operations.filter((op) => {
+        const opLines = linesByOperation.get(op.id) || [];
+        return opLines.some((line) => {
+          const product = productById.get(line.product_id);
+          return product && Number(product.category_id) === categoryId;
+        });
+      });
+    }
+
+    const rows = operations
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .map((op) => {
+        const opLines = linesByOperation.get(op.id) || [];
+        const totalQuantity = opLines.reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+        const fromLoc = locationById.get(op.from_location_id);
+        const toLoc = locationById.get(op.to_location_id);
+
+        return {
+          id: op.id,
+          operation_type: op.operation_type,
+          status: op.status,
+          reference_code: op.reference_code || null,
+          supplier_name: op.supplier_name || null,
+          customer_name: op.customer_name || null,
+          from_location_id: op.from_location_id || null,
+          to_location_id: op.to_location_id || null,
+          scheduled_at: op.scheduled_at || null,
+          validated_at: op.validated_at || null,
+          created_at: op.created_at,
+          from_location_name: fromLoc ? fromLoc.name : null,
+          to_location_name: toLoc ? toLoc.name : null,
+          line_count: opLines.length,
+          total_quantity: totalQuantity,
+        };
+      });
+
+    return res.json(rows);
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch operations', detail: error.message });
   }
@@ -650,8 +820,8 @@ app.get('/api/operations', authMiddleware, async (req, res) => {
 
 app.post('/api/operations', authMiddleware, async (req, res) => {
   const lineSchema = z.object({
-    productId: z.number().int().positive(),
-    quantity: z.number(),
+    productId: z.coerce.number().int().positive(),
+    quantity: z.coerce.number(),
   });
 
   const schema = z.object({
@@ -660,8 +830,8 @@ app.post('/api/operations', authMiddleware, async (req, res) => {
     referenceCode: z.string().optional().nullable(),
     supplierName: z.string().optional().nullable(),
     customerName: z.string().optional().nullable(),
-    fromLocationId: z.number().int().positive().optional().nullable(),
-    toLocationId: z.number().int().positive().optional().nullable(),
+    fromLocationId: z.coerce.number().int().positive().optional().nullable(),
+    toLocationId: z.coerce.number().int().positive().optional().nullable(),
     scheduledAt: z.string().optional().nullable(),
     lines: z.array(lineSchema).min(1),
   });
@@ -672,54 +842,37 @@ app.post('/api/operations', authMiddleware, async (req, res) => {
   }
 
   const data = parsed.data;
-  const client = await pool.connect();
 
   try {
-    await client.query('BEGIN');
+    const operation = {
+      id: await getNextSequence('operations'),
+      operation_type: data.operationType,
+      status: data.status || 'draft',
+      reference_code: data.referenceCode || null,
+      supplier_name: data.supplierName || null,
+      customer_name: data.customerName || null,
+      from_location_id: data.fromLocationId || null,
+      to_location_id: data.toLocationId || null,
+      scheduled_at: data.scheduledAt ? new Date(data.scheduledAt) : null,
+      created_by: Number(req.user.id),
+      validated_at: null,
+      created_at: new Date(),
+    };
 
-    const opResult = await client.query(
-      `INSERT INTO operations (
-         operation_type,
-         status,
-         reference_code,
-         supplier_name,
-         customer_name,
-         from_location_id,
-         to_location_id,
-         scheduled_at,
-         created_by
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING *`,
-      [
-        data.operationType,
-        data.status || 'draft',
-        data.referenceCode || null,
-        data.supplierName || null,
-        data.customerName || null,
-        data.fromLocationId || null,
-        data.toLocationId || null,
-        data.scheduledAt || null,
-        req.user.id,
-      ]
-    );
-
-    const operation = opResult.rows[0];
+    await getCollection('operations').insertOne(operation);
 
     for (const line of data.lines) {
-      await client.query(
-        `INSERT INTO operation_lines (operation_id, product_id, quantity)
-         VALUES ($1, $2, $3)`,
-        [operation.id, line.productId, line.quantity]
-      );
+      await getCollection('operation_lines').insertOne({
+        id: await getNextSequence('operation_lines'),
+        operation_id: operation.id,
+        product_id: Number(line.productId),
+        quantity: Number(line.quantity),
+      });
     }
 
-    await client.query('COMMIT');
-    return res.status(201).json(operation);
+    return res.status(201).json(stripMongoMeta(operation));
   } catch (error) {
-    await client.query('ROLLBACK');
     return res.status(500).json({ message: 'Failed to create operation', detail: error.message });
-  } finally {
-    client.release();
   }
 });
 
@@ -731,19 +884,19 @@ app.post('/api/operations/:id/status', authMiddleware, async (req, res) => {
   }
 
   try {
-    const result = await query(
-      `UPDATE operations
-       SET status = $1
-       WHERE id = $2
-       RETURNING id, status`,
-      [parsed.data.status, Number(req.params.id)]
+    const operationId = Number(req.params.id);
+    const result = await getCollection('operations').findOneAndUpdate(
+      { id: operationId },
+      { $set: { status: parsed.data.status } },
+      { returnDocument: 'after', projection: { _id: 0, id: 1, status: 1 } }
     );
+    const updatedOperation = unwrapFindOneAndUpdateResult(result);
 
-    if (!result.rows.length) {
+    if (!updatedOperation) {
       return res.status(404).json({ message: 'Operation not found' });
     }
 
-    return res.json(result.rows[0]);
+    return res.json(updatedOperation);
   } catch (error) {
     return res.status(500).json({ message: 'Failed to update status', detail: error.message });
   }
@@ -751,34 +904,30 @@ app.post('/api/operations/:id/status', authMiddleware, async (req, res) => {
 
 app.post('/api/operations/:id/validate', authMiddleware, async (req, res) => {
   const operationId = Number(req.params.id);
-  const client = await pool.connect();
 
   try {
-    await client.query('BEGIN');
-
-    const opResult = await client.query('SELECT * FROM operations WHERE id = $1 FOR UPDATE', [operationId]);
-    if (!opResult.rows.length) {
-      await client.query('ROLLBACK');
+    const operations = getCollection('operations');
+    const operation = await operations.findOne({ id: operationId });
+    if (!operation) {
       return res.status(404).json({ message: 'Operation not found' });
     }
 
-    const operation = opResult.rows[0];
     if (operation.status === 'done') {
-      await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Operation already validated' });
     }
     if (operation.status === 'canceled') {
-      await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Canceled operation cannot be validated' });
     }
 
-    const linesResult = await client.query('SELECT product_id, quantity FROM operation_lines WHERE operation_id = $1', [operationId]);
-    if (!linesResult.rows.length) {
-      await client.query('ROLLBACK');
+    const lines = await getCollection('operation_lines')
+      .find({ operation_id: operationId }, { projection: { _id: 0, product_id: 1, quantity: 1 } })
+      .toArray();
+
+    if (!lines.length) {
       return res.status(400).json({ message: 'Operation has no lines' });
     }
 
-    for (const line of linesResult.rows) {
+    for (const line of lines) {
       const productId = Number(line.product_id);
       const quantity = Number(line.quantity);
       const fromLocation = operation.from_location_id;
@@ -789,12 +938,19 @@ app.post('/api/operations/:id/validate', authMiddleware, async (req, res) => {
           throw new Error('Receipt requires a destination location');
         }
 
-        await updateStock(client, productId, toLocation, quantity);
-        await client.query(
-          `INSERT INTO stock_ledger (operation_id, product_id, move_type, to_location_id, quantity, notes, created_by)
-           VALUES ($1, $2, 'receipt', $3, $4, $5, $6)`,
-          [operationId, productId, toLocation, quantity, 'Receipt validated', req.user.id]
-        );
+        await updateStock(productId, toLocation, quantity);
+        await getCollection('stock_ledger').insertOne({
+          id: await getNextSequence('stock_ledger'),
+          operation_id: operationId,
+          product_id: productId,
+          move_type: 'receipt',
+          from_location_id: null,
+          to_location_id: toLocation,
+          quantity,
+          notes: 'Receipt validated',
+          created_by: Number(req.user.id),
+          created_at: new Date(),
+        });
       }
 
       if (operation.operation_type === 'delivery') {
@@ -802,17 +958,24 @@ app.post('/api/operations/:id/validate', authMiddleware, async (req, res) => {
           throw new Error('Delivery requires a source location');
         }
 
-        const available = await getStockAtLocation(client, productId, fromLocation);
+        const available = await getStockAtLocation(productId, fromLocation);
         if (available < quantity) {
           throw new Error(`Insufficient stock for product ${productId}`);
         }
 
-        await updateStock(client, productId, fromLocation, -quantity);
-        await client.query(
-          `INSERT INTO stock_ledger (operation_id, product_id, move_type, from_location_id, quantity, notes, created_by)
-           VALUES ($1, $2, 'delivery', $3, $4, $5, $6)`,
-          [operationId, productId, fromLocation, -quantity, 'Delivery validated', req.user.id]
-        );
+        await updateStock(productId, fromLocation, -quantity);
+        await getCollection('stock_ledger').insertOne({
+          id: await getNextSequence('stock_ledger'),
+          operation_id: operationId,
+          product_id: productId,
+          move_type: 'delivery',
+          from_location_id: fromLocation,
+          to_location_id: null,
+          quantity: -quantity,
+          notes: 'Delivery validated',
+          created_by: Number(req.user.id),
+          created_at: new Date(),
+        });
       }
 
       if (operation.operation_type === 'internal') {
@@ -820,18 +983,25 @@ app.post('/api/operations/:id/validate', authMiddleware, async (req, res) => {
           throw new Error('Internal transfer requires source and destination locations');
         }
 
-        const available = await getStockAtLocation(client, productId, fromLocation);
+        const available = await getStockAtLocation(productId, fromLocation);
         if (available < quantity) {
           throw new Error(`Insufficient stock for product ${productId}`);
         }
 
-        await updateStock(client, productId, fromLocation, -quantity);
-        await updateStock(client, productId, toLocation, quantity);
-        await client.query(
-          `INSERT INTO stock_ledger (operation_id, product_id, move_type, from_location_id, to_location_id, quantity, notes, created_by)
-           VALUES ($1, $2, 'internal', $3, $4, $5, $6, $7)`,
-          [operationId, productId, fromLocation, toLocation, quantity, 'Internal transfer validated', req.user.id]
-        );
+        await updateStock(productId, fromLocation, -quantity);
+        await updateStock(productId, toLocation, quantity);
+        await getCollection('stock_ledger').insertOne({
+          id: await getNextSequence('stock_ledger'),
+          operation_id: operationId,
+          product_id: productId,
+          move_type: 'internal',
+          from_location_id: fromLocation,
+          to_location_id: toLocation,
+          quantity,
+          notes: 'Internal transfer validated',
+          created_by: Number(req.user.id),
+          created_at: new Date(),
+        });
       }
 
       if (operation.operation_type === 'adjustment') {
@@ -839,78 +1009,94 @@ app.post('/api/operations/:id/validate', authMiddleware, async (req, res) => {
           throw new Error('Adjustment requires a location');
         }
 
-        const available = await getStockAtLocation(client, productId, toLocation);
+        const available = await getStockAtLocation(productId, toLocation);
         if (quantity < 0 && available < Math.abs(quantity)) {
           throw new Error(`Adjustment cannot reduce below zero for product ${productId}`);
         }
 
-        await updateStock(client, productId, toLocation, quantity);
-        await client.query(
-          `INSERT INTO stock_ledger (operation_id, product_id, move_type, to_location_id, quantity, notes, created_by)
-           VALUES ($1, $2, 'adjustment', $3, $4, $5, $6)`,
-          [operationId, productId, toLocation, quantity, 'Stock adjustment validated', req.user.id]
-        );
+        await updateStock(productId, toLocation, quantity);
+        await getCollection('stock_ledger').insertOne({
+          id: await getNextSequence('stock_ledger'),
+          operation_id: operationId,
+          product_id: productId,
+          move_type: 'adjustment',
+          from_location_id: null,
+          to_location_id: toLocation,
+          quantity,
+          notes: 'Stock adjustment validated',
+          created_by: Number(req.user.id),
+          created_at: new Date(),
+        });
       }
     }
 
-    await client.query('UPDATE operations SET status = $1, validated_at = NOW() WHERE id = $2', ['done', operationId]);
+    await operations.updateOne(
+      { id: operationId },
+      { $set: { status: 'done', validated_at: new Date() } }
+    );
 
-    await client.query('COMMIT');
     return res.json({ message: 'Operation validated and stock updated' });
   } catch (error) {
-    await client.query('ROLLBACK');
     return res.status(400).json({ message: error.message });
-  } finally {
-    client.release();
   }
 });
 
 app.get('/api/ledger', authMiddleware, async (req, res) => {
   try {
-    const values = [];
-    const filters = [];
+    let ledger = await getCollection('stock_ledger')
+      .find({}, { projection: { _id: 0 } })
+      .sort({ created_at: -1 })
+      .limit(500)
+      .toArray();
+
+    const [products, categories, locations] = await Promise.all([
+      getCollection('products').find({}, { projection: { _id: 0, id: 1, name: 1, sku: 1, category_id: 1 } }).toArray(),
+      getCollection('categories').find({}, { projection: { _id: 0, id: 1, name: 1 } }).toArray(),
+      getCollection('locations').find({}, { projection: { _id: 0, id: 1, name: 1 } }).toArray(),
+    ]);
+
+    const productById = new Map(products.map((p) => [p.id, p]));
+    const categoryById = new Map(categories.map((c) => [c.id, c.name]));
+    const locationById = new Map(locations.map((l) => [l.id, l.name]));
 
     if (req.query.documentType) {
-      values.push(req.query.documentType);
-      filters.push(`sl.move_type = $${values.length}`);
+      ledger = ledger.filter((row) => row.move_type === req.query.documentType);
     }
+
     if (req.query.locationId) {
-      values.push(Number(req.query.locationId));
-      filters.push(`(sl.from_location_id = $${values.length} OR sl.to_location_id = $${values.length})`);
+      const locationId = Number(req.query.locationId);
+      ledger = ledger.filter(
+        (row) => Number(row.from_location_id) === locationId || Number(row.to_location_id) === locationId
+      );
     }
+
     if (req.query.categoryId) {
-      values.push(Number(req.query.categoryId));
-      filters.push(`p.category_id = $${values.length}`);
+      const categoryId = Number(req.query.categoryId);
+      ledger = ledger.filter((row) => {
+        const product = productById.get(row.product_id);
+        return product && Number(product.category_id) === categoryId;
+      });
     }
 
-    const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const rows = ledger.map((row) => {
+      const product = productById.get(row.product_id);
+      return {
+        id: row.id,
+        operation_id: row.operation_id,
+        move_type: row.move_type,
+        quantity: Number(row.quantity || 0),
+        notes: row.notes || null,
+        created_at: row.created_at,
+        product_id: product ? product.id : null,
+        product_name: product ? product.name : null,
+        sku: product ? product.sku : null,
+        category_name: product && product.category_id ? categoryById.get(product.category_id) || null : null,
+        from_location_name: row.from_location_id ? locationById.get(row.from_location_id) || null : null,
+        to_location_name: row.to_location_id ? locationById.get(row.to_location_id) || null : null,
+      };
+    });
 
-    const result = await query(
-      `SELECT
-         sl.id,
-         sl.operation_id,
-         sl.move_type,
-         sl.quantity,
-         sl.notes,
-         sl.created_at,
-         p.id AS product_id,
-         p.name AS product_name,
-         p.sku,
-         c.name AS category_name,
-         lf.name AS from_location_name,
-         lt.name AS to_location_name
-       FROM stock_ledger sl
-       JOIN products p ON p.id = sl.product_id
-       LEFT JOIN categories c ON c.id = p.category_id
-       LEFT JOIN locations lf ON lf.id = sl.from_location_id
-       LEFT JOIN locations lt ON lt.id = sl.to_location_id
-       ${whereClause}
-       ORDER BY sl.created_at DESC
-       LIMIT 500`,
-      values
-    );
-
-    return res.json(result.rows);
+    return res.json(rows);
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch stock ledger', detail: error.message });
   }
@@ -922,6 +1108,8 @@ app.use((err, _req, res, _next) => {
 
 app.listen(port, async () => {
   try {
+    await connectToDatabase();
+    await ensureDatabaseSetup();
     await ensureDefaults();
     console.log(`CoreInventory API running on http://localhost:${port}`);
   } catch (error) {
