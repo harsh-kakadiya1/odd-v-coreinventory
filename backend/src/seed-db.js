@@ -14,6 +14,7 @@ const {
 const SEEDED_ACCOUNTS = [
   {
     id: 1001,
+    login_id: 'admin1001',
     full_name: 'System Admin',
     email: 'admin@coreinventory.local',
     password: 'Admin@123',
@@ -21,6 +22,7 @@ const SEEDED_ACCOUNTS = [
   },
   {
     id: 1002,
+    login_id: 'manager01',
     full_name: 'Inventory Manager',
     email: 'manager@coreinventory.local',
     password: 'Manager@123',
@@ -28,6 +30,7 @@ const SEEDED_ACCOUNTS = [
   },
   {
     id: 1003,
+    login_id: 'staff1003',
     full_name: 'Warehouse Staff',
     email: 'staff@coreinventory.local',
     password: 'Staff@123',
@@ -35,6 +38,7 @@ const SEEDED_ACCOUNTS = [
   },
   {
     id: 1004,
+    login_id: 'testuser1',
     full_name: 'Test User',
     email: 'test.user@example.com',
     password: 'secret123',
@@ -150,6 +154,7 @@ async function seedUsers() {
       { email: account.email.toLowerCase() },
       {
         id: account.id,
+        login_id: account.login_id,
         full_name: account.full_name,
         email: account.email.toLowerCase(),
         password_hash,
@@ -157,6 +162,7 @@ async function seedUsers() {
         created_at: new Date(),
       },
       {
+        login_id: account.login_id,
         full_name: account.full_name,
         password_hash,
         role: account.role,

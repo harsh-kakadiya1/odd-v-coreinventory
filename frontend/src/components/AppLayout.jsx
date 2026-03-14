@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth-context';
+import api from '../api';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard' },
@@ -7,16 +9,52 @@ const navItems = [
   { to: '/products', label: 'Products' },
   { to: '/ledger', label: 'Move History' },
   { to: '/settings', label: 'Settings' },
-  { to: '/profile', label: 'My Profile' },
 ];
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [profile, setProfile] = useState(user);
+  const menuRef = useRef(null);
+
+  async function loadProfile() {
+    try {
+      const response = await api.get('/auth/me');
+      setProfile(response.data);
+    } catch {
+      setProfile(user);
+    }
+  }
+
+  useEffect(() => {
+    setProfile(user);
+  }, [user]);
+
+  useEffect(() => {
+    function handleOutsideClick(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
 
   const onLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const toggleProfileMenu = async () => {
+    const nextOpen = !menuOpen;
+    setMenuOpen(nextOpen);
+    if (nextOpen) {
+      await loadProfile();
+    }
   };
 
   return (
@@ -40,13 +78,42 @@ export default function AppLayout() {
         </nav>
 
         <div className="nav-actions">
-          <div className="sidebar-user">
-            <p>{user?.full_name || user?.fullName}</p>
-            <span>{user?.role}</span>
+          <div className="profile-menu-wrap" ref={menuRef}>
+            <button
+              type="button"
+              className="profile-trigger"
+              onClick={toggleProfileMenu}
+              aria-label="Open profile menu"
+              aria-expanded={menuOpen}
+            >
+              <span>{(profile?.full_name || profile?.fullName || profile?.email || 'U').charAt(0).toUpperCase()}</span>
+            </button>
+
+            {menuOpen && (
+              <div className="profile-menu panel">
+                <h3>My Profile</h3>
+                <p>
+                  <span>Name</span>
+                  <strong>{profile?.full_name || profile?.fullName || '-'}</strong>
+                </p>
+                <p>
+                  <span>Email</span>
+                  <strong>{profile?.email || '-'}</strong>
+                </p>
+                <p>
+                  <span>Role</span>
+                  <strong>{profile?.role || '-'}</strong>
+                </p>
+                <p>
+                  <span>Created</span>
+                  <strong>{profile?.created_at ? new Date(profile.created_at).toLocaleString() : '-'}</strong>
+                </p>
+                <button type="button" className="ghost" onClick={onLogout}>
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
-          <button type="button" className="ghost" onClick={onLogout}>
-            Logout
-          </button>
         </div>
       </header>
 

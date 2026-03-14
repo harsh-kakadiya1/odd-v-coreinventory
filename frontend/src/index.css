@@ -195,6 +195,46 @@ label {
   background: #fff;
 }
 
+.auth-panel > * {
+  width: 100%;
+  max-width: 380px;
+  margin-inline: auto;
+}
+
+.auth-panel-sm {
+  width: min(460px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-md);
+}
+
+.auth-card {
+  width: 100%;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.auth-title {
+  text-align: center;
+}
+
+.auth-links {
+  display: flex;
+  justify-content: center;
+}
+
+.auth-links a {
+  color: inherit;
+}
+
+.auth-links-center {
+  text-align: center;
+}
+
+.auth-panel .form-grid .muted {
+  text-align: center;
+}
+
 .auth-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -203,6 +243,14 @@ label {
   border: 1px solid var(--line);
   border-radius: 0.625rem;
   padding: 0.25rem;
+}
+
+.auth-tabs-two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.auth-subtitle {
+  text-align: center;
 }
 
 .auth-tabs button {
@@ -326,6 +374,7 @@ label {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  position: relative;
 }
 
 .top-nav .sidebar-user {
@@ -389,6 +438,62 @@ label {
   color: var(--muted);
   font-family: 'IBM Plex Mono', monospace;
   font-size: 0.76rem;
+}
+
+.profile-menu-wrap {
+  position: relative;
+}
+
+.profile-trigger {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 999px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: #344054;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.profile-trigger:hover {
+  background: #f9fafb;
+  border-color: #98a2b3;
+  color: #1d2939;
+}
+
+.profile-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.55rem);
+  width: min(330px, 80vw);
+  z-index: 30;
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.9rem;
+}
+
+.profile-menu h3 {
+  font-size: 1rem;
+}
+
+.profile-menu p {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid #eef1f4;
+  padding-bottom: 0.34rem;
+  gap: 0.8rem;
+}
+
+.profile-menu p span {
+  color: var(--muted);
+}
+
+.profile-menu button {
+  width: 100%;
 }
 
 .content {

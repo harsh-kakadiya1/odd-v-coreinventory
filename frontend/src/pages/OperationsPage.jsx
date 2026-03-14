@@ -19,7 +19,6 @@ export default function OperationsPage() {
   const [operations, setOperations] = useState([]);
   const [products, setProducts] = useState([]);
   const [locations, setLocations] = useState([]);
-  const [filters, setFilters] = useState({ documentType: '', status: '' });
   const [form, setForm] = useState(initialOperation);
   const [error, setError] = useState('');
 
@@ -27,7 +26,7 @@ export default function OperationsPage() {
     setError('');
     try {
       const [opsRes, productsRes, locationsRes] = await Promise.all([
-        api.get('/operations', { params: filters }),
+        api.get('/operations'),
         api.get('/products'),
         api.get('/locations'),
       ]);
@@ -41,7 +40,7 @@ export default function OperationsPage() {
 
   useEffect(() => {
     loadData();
-  }, [filters.documentType, filters.status]);
+  }, []);
 
   const addLine = () => {
     setForm((prev) => ({
@@ -120,34 +119,6 @@ export default function OperationsPage() {
 
       <div className="page-two-column">
         <div className="page-left-stack">
-          <div className="filters">
-            <label>
-              Document Type
-              <select
-                value={filters.documentType}
-                onChange={(e) => setFilters((p) => ({ ...p, documentType: e.target.value }))}
-              >
-                <option value="">All</option>
-                {operationTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Status
-              <select value={filters.status} onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}>
-                <option value="">All</option>
-                <option value="draft">Draft</option>
-                <option value="waiting">Waiting</option>
-                <option value="ready">Ready</option>
-                <option value="done">Done</option>
-                <option value="canceled">Canceled</option>
-              </select>
-            </label>
-          </div>
-
           <form className="panel form-grid" onSubmit={createOperation}>
             <h3>Create Operation</h3>
             <label>

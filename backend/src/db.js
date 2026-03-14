@@ -75,6 +75,7 @@ async function ensureDatabaseSetup() {
   }
 
   await Promise.all([
+    getCollection('users').createIndex({ login_id: 1 }, { unique: true }),
     getCollection('users').createIndex({ email: 1 }, { unique: true }),
     getCollection('categories').createIndex({ name: 1 }, { unique: true }),
     getCollection('warehouses').createIndex({ name: 1 }, { unique: true }),
