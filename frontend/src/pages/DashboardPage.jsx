@@ -16,7 +16,13 @@ export default function DashboardPage() {
   const [filters, setFilters] = useState({
     documentType: '',
     status: '',
+    warehouseId: '',
+    locationId: '',
+    categoryId: '',
   });
+  const [categories, setCategories] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [error, setError] = useState('');
 
   async function loadData() {
@@ -29,9 +35,28 @@ export default function DashboardPage() {
     }
   }
 
+  async function loadLists() {
+    try {
+      const [catsRes, whRes, locRes] = await Promise.all([
+        api.get('/categories'),
+        api.get('/warehouses'),
+        api.get('/locations'),
+      ]);
+      setCategories(catsRes.data || []);
+      setWarehouses(whRes.data || []);
+      setLocations(locRes.data || []);
+    } catch (err) {
+      // non-blocking: lists optional
+    }
+  }
+
   useEffect(() => {
     loadData();
-  }, [filters.documentType, filters.status]);
+  }, [filters.documentType, filters.status, filters.warehouseId, filters.locationId, filters.categoryId]);
+
+  useEffect(() => {
+    loadLists();
+  }, []);
 
   const cards = useMemo(
     () => [
@@ -57,70 +82,143 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      <div className="filters">
-        <label>
-          Document Type
-          <select
-            value={filters.documentType}
-            onChange={(e) => setFilters((p) => ({ ...p, documentType: e.target.value }))}
-          >
-            <option value="">All</option>
-            <option value="receipt">Receipts</option>
-            <option value="delivery">Delivery</option>
-            <option value="internal">Internal</option>
-            <option value="adjustment">Adjustments</option>
-          </select>
-        </label>
-        <label>
-          Status
-          <select value={filters.status} onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}>
-            <option value="">All</option>
-            <option value="draft">Draft</option>
-            <option value="waiting">Waiting</option>
-            <option value="ready">Ready</option>
-            <option value="done">Done</option>
-            <option value="canceled">Canceled</option>
-          </select>
-        </label>
-      </div>
+      <div className="page-two-column">
+        <div className="page-left-stack">
+          <div className="filters">
+            <label>
+              Document Type
+              <select
+                value={filters.documentType}
+                onChange={(e) => setFilters((p) => ({ ...p, documentType: e.target.value }))}
+              >
+                <option value="">All</option>
+                <option value="receipt">Receipts</option>
+                <option value="delivery">Delivery</option>
+                <option value="internal">Internal</option>
+                <option value="adjustment">Adjustments</option>
+              </select>
+            </label>
+            <label>
+              Status
+              <select value={filters.status} onChange={(e) => setFilters((p) => ({ ...p, status: e.target.value }))}>
+                <option value="">All</option>
+                <option value="draft">Draft</option>
+                <option value="waiting">Waiting</option>
+                <option value="ready">Ready</option>
+                <option value="done">Done</option>
+                <option value="canceled">Canceled</option>
+              </select>
+            </label>
+            <label>
+              Warehouse
+              <select
+                value={filters.warehouseId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFilters((p) => ({ ...p, warehouseId: val, locationId: '' }));
+                }}
+              >
+                <option value="">All</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Location
+              <select
+                value={filters.locationId}
+                onChange={(e) => setFilters((p) => ({ ...p, locationId: e.target.value }))}
+              >
+                <option value="">All</option>
+                {locations
+                  .filter((l) => !filters.warehouseId || Number(l.warehouse_id) === Number(filters.warehouseId))
+                  .map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.warehouse_name ? `${l.warehouse_name} / ${l.name}` : l.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label>
+              Category
+              <select
+                value={filters.categoryId}
+                onChange={(e) => setFilters((p) => ({ ...p, categoryId: e.target.value }))}
+              >
+                <option value="">All</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
-      <div className="kpi-grid">
-        {cards.map((card) => (
-          <article key={card.title} className="card">
-            <p>{card.title}</p>
-            <strong>{card.value}</strong>
-          </article>
-        ))}
-      </div>
-
-      <section className="table-card">
-        <h3>Recent Operations</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Reference</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {kpis.recentOperations.length === 0 && (
-              <tr>
-                <td colSpan={4}>No operations yet.</td>
-              </tr>
-            )}
-            {kpis.recentOperations.map((row) => (
-              <tr key={row.id}>
-                <td>{row.reference}</td>
-                <td>{row.operation_type}</td>
-                <td>{row.status}</td>
-                <td>{new Date(row.created_at).toLocaleString()}</td>
-              </tr>
+          <div className="kpi-grid">
+            {cards.map((card) => (
+              <article key={card.title} className="card">
+                <p>{card.title}</p>
+                <strong>{card.value}</strong>
+              </article>
             ))}
-          </tbody>
-        </table>
-      </section>
+          </div>
+
+          {kpis.low_stock_products && kpis.low_stock_products.length > 0 && (
+            <section className="panel">
+              <h3>Low / Reorder Items</h3>
+              <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.5rem' }}>
+                {kpis.low_stock_products.slice(0, 8).map((p) => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>{p.name}</strong>
+                      <div className="table-sub">{p.sku} • On hand: {p.on_hand}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span className="muted">Reorder @ {p.reorder_level}</span>
+                    </div>
+                  </div>
+                ))}
+                {kpis.low_stock_products.length > 8 && <div className="muted">And more…</div>}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <div className="page-right-stack">
+          <section className="table-card">
+            <h3>Recent Operations</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {kpis.recentOperations.length === 0 && (
+                  <tr>
+                    <td colSpan={4}>No operations yet.</td>
+                  </tr>
+                )}
+                {kpis.recentOperations.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.reference}</td>
+                    <td>{row.operation_type}</td>
+                    <td>{row.status}</td>
+                    <td>{new Date(row.created_at).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        </div>
+      </div>
 
       {error && <p className="error-message">{error}</p>}
     </section>

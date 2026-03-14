@@ -417,6 +417,20 @@ label {
   gap: 0.45rem;
 }
 
+.page-two-column {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(520px, 1.35fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.page-left-stack,
+.page-right-stack {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
 .filters {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 360px));
@@ -663,6 +677,10 @@ label {
   .auth-split {
     grid-template-columns: 1fr;
     min-height: auto;
+  }
+
+  .page-two-column {
+    grid-template-columns: 1fr;
   }
 
   .auth-visual {
