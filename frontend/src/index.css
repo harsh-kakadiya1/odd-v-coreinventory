@@ -1,0 +1,374 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #f4f8f0;
+  --bg-2: #edf4ff;
+  --card: #ffffff;
+  --line: #d6e3cf;
+  --text: #1d2a1f;
+  --muted: #54725a;
+  --brand: #dd5e2b;
+  --brand-2: #186f65;
+  --danger: #b4302f;
+  --ok: #0d7a42;
+  --shadow: 0 12px 40px rgba(40, 75, 65, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(221, 94, 43, 0.15), transparent 30%),
+    radial-gradient(circle at 90% 100%, rgba(24, 111, 101, 0.2), transparent 35%),
+    linear-gradient(140deg, var(--bg), var(--bg-2));
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.8rem;
+}
+
+h3 {
+  font-size: 1.15rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--brand-2);
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  background: linear-gradient(120deg, var(--brand), #f08b2b);
+  color: #fff;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+button.ghost {
+  background: #eff4e7;
+  color: #2d4f38;
+  border: 1px solid var(--line);
+}
+
+input,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 0.6rem;
+  padding: 0.55rem 0.7rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  color: #34503a;
+  font-size: 0.9rem;
+}
+
+.auth-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.auth-panel {
+  width: min(540px, 100%);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1.2rem;
+  box-shadow: var(--shadow);
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+  animation: reveal 0.45s ease;
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+
+.auth-tabs button {
+  background: #f4f7ec;
+  color: #35513f;
+  border: 1px solid var(--line);
+}
+
+.auth-tabs button.active {
+  background: linear-gradient(120deg, var(--brand), #f08b2b);
+  color: #fff;
+}
+
+.otp-note {
+  font-family: 'IBM Plex Mono', monospace;
+  background: #fff8eb;
+  border: 1px dashed #edb059;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: linear-gradient(165deg, #1f4f45, #17372f);
+  color: #daf1e5;
+  padding: 1.1rem;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 1rem;
+}
+
+.brand {
+  margin-top: 0.4rem;
+  font-size: 1.45rem;
+}
+
+.nav-links {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: #dbebe2;
+  padding: 0.58rem 0.7rem;
+  border-radius: 0.7rem;
+  border: 1px solid transparent;
+}
+
+.nav-link.active,
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.sidebar-user {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.sidebar-user span {
+  color: #b5d2c2;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+}
+
+.content {
+  padding: 1.2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.8rem;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.8rem;
+}
+
+.card,
+.panel,
+.table-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: var(--shadow);
+  animation: reveal 0.45s ease;
+}
+
+.card {
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.card strong {
+  font-size: 1.8rem;
+  color: #1f4f45;
+}
+
+.split-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 1rem;
+}
+
+.panel,
+.table-card {
+  padding: 0.95rem;
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.line-box {
+  border: 1px dashed var(--line);
+  border-radius: 0.75rem;
+  padding: 0.7rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.line-row {
+  display: grid;
+  grid-template-columns: 1fr 160px auto;
+  gap: 0.6rem;
+}
+
+.table-card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.35rem;
+}
+
+.table-card th,
+.table-card td {
+  text-align: left;
+  border-bottom: 1px solid #e9efe0;
+  padding: 0.55rem 0.35rem;
+  font-size: 0.9rem;
+}
+
+.table-card th {
+  color: #3b5e4a;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.profile-panel {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.profile-panel p {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid #eff4e7;
+  padding-bottom: 0.35rem;
+}
+
+.profile-panel span {
+  color: var(--muted);
+}
+
+.error-message {
+  color: var(--danger);
+  background: #ffefef;
+  border: 1px solid #f5b8b8;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.55rem;
+}
+
+.success-message {
+  color: var(--ok);
+  background: #eefcf4;
+  border: 1px solid #9de0ba;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.55rem;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    grid-template-rows: auto;
+    gap: 0.7rem;
+  }
+
+  .nav-links {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .line-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .content {
+    padding: 0.8rem;
+  }
+
+  .nav-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .header-row {
+    flex-direction: column;
+  }
+}
