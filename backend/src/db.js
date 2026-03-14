@@ -75,7 +75,12 @@ async function ensureDatabaseSetup() {
   }
 
   await Promise.all([
-    getCollection('users').createIndex({ login_id: 1 }, { unique: true }),
+    // create a partial unique index on `login_id` so documents without a string
+    // `login_id` (null/missing) don't block index creation due to duplicate nulls
+    getCollection('users').createIndex(
+      { login_id: 1 },
+      { unique: true, partialFilterExpression: { login_id: { $type: 'string' } } }
+    ),
     getCollection('users').createIndex({ email: 1 }, { unique: true }),
     getCollection('categories').createIndex({ name: 1 }, { unique: true }),
     getCollection('warehouses').createIndex({ name: 1 }, { unique: true }),

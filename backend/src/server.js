@@ -163,12 +163,11 @@ const signupSchema = z.object({
 });
 
 const loginSchema = z.object({
-  loginId: z
-    .string()
-    .trim()
-    .min(6)
-    .max(12)
-    .regex(/^[A-Za-z0-9_]+$/),
+  // allow either an email address or a legacy login id
+  loginId: z.union([
+    z.string().email(),
+    z.string().trim().min(6).max(12).regex(/^[A-Za-z0-9_]+$/),
+  ]),
   password: z.string().min(6),
 });
 
@@ -246,7 +245,16 @@ app.post('/api/auth/login', async (req, res) => {
   const { loginId, password } = parsed.data;
 
   try {
-    const user = await getCollection('users').findOne({ login_id: loginId.trim() });
+    const identifier = String(loginId).trim();
+    let user;
+    if (identifier.includes('@')) {
+      // treat as email
+      user = await getCollection('users').findOne({ email: identifier.toLowerCase() });
+    } else {
+      // treat as login id
+      user = await getCollection('users').findOne({ login_id: identifier });
+    }
+
     if (!user) {
       return res.status(401).json({ message: 'Invalid Login Id or Password' });
     }

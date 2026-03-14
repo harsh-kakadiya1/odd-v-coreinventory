@@ -4,10 +4,10 @@ import api from '../api';
 import { useAuth } from '../auth-context';
 import heroImage from '../assets/hero.png';
 
-const initialLogin = {
-  loginId: '',
-  password: '',
-};
+  const initialLogin = {
+    loginId: '',
+    password: '',
+  };
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -60,12 +60,10 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="form-grid">
             <label>
-              Login Id
+              Login Id or Email
               <input
                 type="text"
                 required
-                minLength={6}
-                maxLength={12}
                 value={loginForm.loginId}
                 onChange={(e) => setLoginForm((p) => ({ ...p, loginId: e.target.value }))}
               />
