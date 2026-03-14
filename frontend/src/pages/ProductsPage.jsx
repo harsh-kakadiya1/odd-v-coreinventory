@@ -6,9 +6,17 @@ const initialProduct = {
   sku: '',
   categoryId: '',
   unitOfMeasure: 'Unit',
+  unitCost: 0,
   reorderLevel: 0,
   initialStock: 0,
   initialLocationId: '',
+};
+
+const initialAdjustment = {
+  productId: '',
+  locationId: '',
+  delta: '',
+  notes: '',
 };
 
 export default function ProductsPage() {
@@ -16,6 +24,7 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [form, setForm] = useState(initialProduct);
+  const [adjustment, setAdjustment] = useState(initialAdjustment);
   const [categoryInput, setCategoryInput] = useState('');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
@@ -61,6 +70,7 @@ export default function ProductsPage() {
         ...form,
         categoryId: form.categoryId ? Number(form.categoryId) : null,
         reorderLevel: Number(form.reorderLevel || 0),
+        unitCost: Number(form.unitCost || 0),
         initialStock: Number(form.initialStock || 0),
         initialLocationId: form.initialLocationId ? Number(form.initialLocationId) : undefined,
       });
@@ -71,12 +81,34 @@ export default function ProductsPage() {
     }
   }
 
+  async function adjustStock(event) {
+    event.preventDefault();
+    setError('');
+
+    if (!adjustment.productId || !adjustment.locationId || !adjustment.delta) {
+      setError('Please select product, location, and quantity delta.');
+      return;
+    }
+
+    try {
+      await api.post(`/products/${Number(adjustment.productId)}/adjust-stock`, {
+        locationId: Number(adjustment.locationId),
+        delta: Number(adjustment.delta),
+        notes: adjustment.notes.trim() || null,
+      });
+      setAdjustment(initialAdjustment);
+      await loadData();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update stock.');
+    }
+  }
+
   return (
     <section>
       <div className="header-row">
         <div>
-          <h2>Products</h2>
-          <p className="muted">Manage SKUs, categories, units, reorder levels, and opening stock.</p>
+          <h2>Stock</h2>
+          <p className="muted">Manage products, costs, available stock, and manual quantity updates.</p>
         </div>
         <button type="button" onClick={loadData}>
           Refresh
@@ -114,6 +146,16 @@ export default function ProductsPage() {
               value={form.unitOfMeasure}
               onChange={(e) => setForm((p) => ({ ...p, unitOfMeasure: e.target.value }))}
               required
+            />
+          </label>
+          <label>
+            Per unit cost
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.unitCost}
+              onChange={(e) => setForm((p) => ({ ...p, unitCost: e.target.value }))}
             />
           </label>
           <label>
@@ -168,35 +210,89 @@ export default function ProductsPage() {
             Search
           </button>
         </div>
+
+        <form className="panel form-grid" onSubmit={adjustStock}>
+          <h3>Update Stock From Here</h3>
+          <label>
+            Product
+            <select
+              value={adjustment.productId}
+              onChange={(e) => setAdjustment((p) => ({ ...p, productId: e.target.value }))}
+              required
+            >
+              <option value="">Select product</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name} ({product.sku})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Location
+            <select
+              value={adjustment.locationId}
+              onChange={(e) => setAdjustment((p) => ({ ...p, locationId: e.target.value }))}
+              required
+            >
+              <option value="">Select location</option>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.warehouse_name} / {loc.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Quantity delta (+/-)
+            <input
+              type="number"
+              step="0.01"
+              value={adjustment.delta}
+              onChange={(e) => setAdjustment((p) => ({ ...p, delta: e.target.value }))}
+              required
+            />
+          </label>
+          <label>
+            Note
+            <input
+              value={adjustment.notes}
+              onChange={(e) => setAdjustment((p) => ({ ...p, notes: e.target.value }))}
+              placeholder="Manual cycle count"
+            />
+          </label>
+          <button type="submit">Apply Adjustment</button>
+        </form>
       </div>
 
       <section className="table-card">
-        <h3>Product Catalog</h3>
+        <h3>Stock Table</h3>
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>SKU</th>
+              <th>Product</th>
+              <th>Per Unit Cost</th>
+              <th>On Hand</th>
+              <th>Free to Use</th>
               <th>Category</th>
-              <th>UoM</th>
-              <th>Reorder Level</th>
-              <th>Total Stock</th>
             </tr>
           </thead>
           <tbody>
             {products.length === 0 && (
               <tr>
-                <td colSpan={6}>No products found.</td>
+                <td colSpan={5}>No products found.</td>
               </tr>
             )}
             {products.map((product) => (
               <tr key={product.id}>
-                <td>{product.name}</td>
-                <td>{product.sku}</td>
+                <td>
+                  {product.name}
+                  <div className="table-sub">{product.sku}</div>
+                </td>
+                <td>{Number(product.per_unit_cost || 0)} Rs</td>
+                <td>{Number(product.on_hand || product.total_stock || 0)}</td>
+                <td>{Number(product.free_to_use || product.total_stock || 0)}</td>
                 <td>{product.category_name || 'Uncategorized'}</td>
-                <td>{product.unit_of_measure}</td>
-                <td>{product.reorder_level}</td>
-                <td>{product.total_stock}</td>
               </tr>
             ))}
           </tbody>

@@ -51,6 +51,7 @@ const SEEDED_PRODUCTS = [
     categoryName: 'Electronics',
     unit_of_measure: 'Unit',
     reorder_level: 10,
+    per_unit_cost: 3000,
   },
   {
     name: 'Thermal Printer',
@@ -58,6 +59,7 @@ const SEEDED_PRODUCTS = [
     categoryName: 'Electronics',
     unit_of_measure: 'Unit',
     reorder_level: 8,
+    per_unit_cost: 5400,
   },
   {
     name: 'Corrugated Box - Medium',
@@ -65,6 +67,7 @@ const SEEDED_PRODUCTS = [
     categoryName: 'Packaging',
     unit_of_measure: 'Piece',
     reorder_level: 50,
+    per_unit_cost: 85,
   },
   {
     name: 'Packing Tape Roll',
@@ -72,6 +75,7 @@ const SEEDED_PRODUCTS = [
     categoryName: 'Packaging',
     unit_of_measure: 'Roll',
     reorder_level: 40,
+    per_unit_cost: 120,
   },
   {
     name: 'Hydraulic Pump',
@@ -79,6 +83,7 @@ const SEEDED_PRODUCTS = [
     categoryName: 'Spare Parts',
     unit_of_measure: 'Unit',
     reorder_level: 4,
+    per_unit_cost: 12400,
   },
 ];
 
@@ -172,13 +177,33 @@ async function seedWarehousesAndLocations() {
   const mainWarehouse = await upsertByUniqueKey(
     'warehouses',
     { name: 'Main Warehouse' },
-    { id: await getNextSequence('warehouses'), name: 'Main Warehouse', created_at: new Date() }
+    {
+      id: await getNextSequence('warehouses'),
+      name: 'Main Warehouse',
+      short_code: 'WH1',
+      address: 'Sector 21, Main Industrial Area',
+      created_at: new Date(),
+    },
+    {
+      short_code: 'WH1',
+      address: 'Sector 21, Main Industrial Area',
+    }
   );
 
   const secondaryWarehouse = await upsertByUniqueKey(
     'warehouses',
     { name: 'Secondary Warehouse' },
-    { id: await getNextSequence('warehouses'), name: 'Secondary Warehouse', created_at: new Date() }
+    {
+      id: await getNextSequence('warehouses'),
+      name: 'Secondary Warehouse',
+      short_code: 'WH2',
+      address: 'Dock Zone, West Side Complex',
+      created_at: new Date(),
+    },
+    {
+      short_code: 'WH2',
+      address: 'Dock Zone, West Side Complex',
+    }
   );
 
   const stockLocation = await upsertByUniqueKey(
@@ -188,7 +213,11 @@ async function seedWarehousesAndLocations() {
       id: await getNextSequence('locations'),
       warehouse_id: mainWarehouse.id,
       name: 'Stock',
+      short_code: 'STK1',
       created_at: new Date(),
+    },
+    {
+      short_code: 'STK1',
     }
   );
 
@@ -199,7 +228,11 @@ async function seedWarehousesAndLocations() {
       id: await getNextSequence('locations'),
       warehouse_id: mainWarehouse.id,
       name: 'Receiving',
+      short_code: 'RCV1',
       created_at: new Date(),
+    },
+    {
+      short_code: 'RCV1',
     }
   );
 
@@ -210,7 +243,11 @@ async function seedWarehousesAndLocations() {
       id: await getNextSequence('locations'),
       warehouse_id: mainWarehouse.id,
       name: 'Shipping',
+      short_code: 'SHP1',
       created_at: new Date(),
+    },
+    {
+      short_code: 'SHP1',
     }
   );
 
@@ -221,7 +258,11 @@ async function seedWarehousesAndLocations() {
       id: await getNextSequence('locations'),
       warehouse_id: secondaryWarehouse.id,
       name: 'Reserve',
+      short_code: 'RSV2',
       created_at: new Date(),
+    },
+    {
+      short_code: 'RSV2',
     }
   );
 
@@ -265,6 +306,7 @@ async function seedProducts(categoryByName) {
         category_id: category ? category.id : null,
         unit_of_measure: productSeed.unit_of_measure,
         reorder_level: productSeed.reorder_level,
+        per_unit_cost: productSeed.per_unit_cost,
         created_at: new Date(),
       },
       {
@@ -272,6 +314,7 @@ async function seedProducts(categoryByName) {
         category_id: category ? category.id : null,
         unit_of_measure: productSeed.unit_of_measure,
         reorder_level: productSeed.reorder_level,
+        per_unit_cost: productSeed.per_unit_cost,
       }
     );
 

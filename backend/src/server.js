@@ -416,18 +416,29 @@ app.post('/api/categories', authMiddleware, async (req, res) => {
 app.get('/api/warehouses', authMiddleware, async (_req, res) => {
   try {
     const warehouses = await getCollection('warehouses')
-      .find({}, { projection: { _id: 0, id: 1, name: 1, created_at: 1 } })
+      .find({}, { projection: { _id: 0, id: 1, name: 1, short_code: 1, address: 1, created_at: 1 } })
       .sort({ created_at: 1 })
       .toArray();
 
-    return res.json(warehouses.map((row) => ({ id: row.id, name: row.name })));
+    return res.json(
+      warehouses.map((row) => ({
+        id: row.id,
+        name: row.name,
+        short_code: row.short_code || null,
+        address: row.address || null,
+      }))
+    );
   } catch (error) {
     return res.status(500).json({ message: 'Failed to fetch warehouses', detail: error.message });
   }
 });
 
 app.post('/api/warehouses', authMiddleware, async (req, res) => {
-  const schema = z.object({ name: z.string().min(2) });
+  const schema = z.object({
+    name: z.string().min(2),
+    shortCode: z.string().max(30).optional().nullable(),
+    address: z.string().max(200).optional().nullable(),
+  });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ message: 'Invalid warehouse name' });
@@ -435,19 +446,40 @@ app.post('/api/warehouses', authMiddleware, async (req, res) => {
 
   try {
     const name = parsed.data.name.trim();
+    const shortCode = parsed.data.shortCode ? parsed.data.shortCode.trim().toUpperCase() : null;
+    const address = parsed.data.address ? parsed.data.address.trim() : null;
     const warehouses = getCollection('warehouses');
-    let warehouse = await warehouses.findOne({ name }, { projection: { _id: 0, id: 1, name: 1 } });
+    let warehouse = await warehouses.findOne({ name }, { projection: { _id: 0 } });
 
     if (!warehouse) {
       warehouse = {
         id: await getNextSequence('warehouses'),
         name,
+        short_code: shortCode,
+        address,
         created_at: new Date(),
       };
       await warehouses.insertOne(warehouse);
+    } else {
+      await warehouses.updateOne(
+        { id: warehouse.id },
+        {
+          $set: {
+            short_code: shortCode,
+            address,
+          },
+        }
+      );
+      warehouse.short_code = shortCode;
+      warehouse.address = address;
     }
 
-    return res.status(201).json({ id: warehouse.id, name: warehouse.name });
+    return res.status(201).json({
+      id: warehouse.id,
+      name: warehouse.name,
+      short_code: warehouse.short_code || null,
+      address: warehouse.address || null,
+    });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create warehouse', detail: error.message });
   }
@@ -465,6 +497,7 @@ app.get('/api/locations', authMiddleware, async (_req, res) => {
       .map((loc) => ({
         id: loc.id,
         name: loc.name,
+        short_code: loc.short_code || null,
         warehouse_id: loc.warehouse_id,
         warehouse_name: warehouseNameById.get(loc.warehouse_id) || null,
       }))
@@ -486,6 +519,7 @@ app.post('/api/locations', authMiddleware, async (req, res) => {
   const schema = z.object({
     warehouseId: z.coerce.number().int().positive(),
     name: z.string().min(2),
+    shortCode: z.string().max(30).optional().nullable(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
@@ -494,6 +528,7 @@ app.post('/api/locations', authMiddleware, async (req, res) => {
 
   try {
     const name = parsed.data.name.trim();
+    const shortCode = parsed.data.shortCode ? parsed.data.shortCode.trim().toUpperCase() : null;
     const warehouseId = Number(parsed.data.warehouseId);
     const locations = getCollection('locations');
 
@@ -504,15 +539,27 @@ app.post('/api/locations', authMiddleware, async (req, res) => {
         id: await getNextSequence('locations'),
         warehouse_id: warehouseId,
         name,
+        short_code: shortCode,
         created_at: new Date(),
       };
       await locations.insertOne(location);
+    } else {
+      await locations.updateOne(
+        { id: location.id },
+        {
+          $set: {
+            short_code: shortCode,
+          },
+        }
+      );
+      location.short_code = shortCode;
     }
 
     return res.status(201).json({
       id: location.id,
       warehouse_id: location.warehouse_id,
       name: location.name,
+      short_code: location.short_code || null,
     });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create location', detail: error.message });
@@ -558,6 +605,9 @@ app.get('/api/products', authMiddleware, async (req, res) => {
         category_name: product.category_id ? categoryById.get(product.category_id) || null : null,
         unit_of_measure: product.unit_of_measure,
         reorder_level: Number(product.reorder_level || 0),
+        per_unit_cost: Number(product.per_unit_cost || 0),
+        on_hand: Number(stockByProduct.get(product.id) || 0),
+        free_to_use: Number(stockByProduct.get(product.id) || 0),
         total_stock: Number(stockByProduct.get(product.id) || 0),
       }));
 
@@ -611,6 +661,7 @@ app.post('/api/products', authMiddleware, async (req, res) => {
     categoryId: z.coerce.number().int().positive().optional().nullable(),
     unitOfMeasure: z.string().min(1),
     reorderLevel: z.coerce.number().min(0).optional(),
+    unitCost: z.coerce.number().min(0).optional(),
     initialStock: z.coerce.number().optional(),
     initialLocationId: z.coerce.number().int().positive().optional(),
   });
@@ -637,6 +688,7 @@ app.post('/api/products', authMiddleware, async (req, res) => {
       category_id: data.categoryId || null,
       unit_of_measure: data.unitOfMeasure.trim(),
       reorder_level: Number(data.reorderLevel || 0),
+      per_unit_cost: Number(data.unitCost || 0),
       created_at: new Date(),
     };
 
@@ -666,6 +718,7 @@ app.post('/api/products', authMiddleware, async (req, res) => {
       category_id: product.category_id,
       unit_of_measure: product.unit_of_measure,
       reorder_level: product.reorder_level,
+      per_unit_cost: product.per_unit_cost,
     });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to create product', detail: error.message });
@@ -679,6 +732,7 @@ app.put('/api/products/:id', authMiddleware, async (req, res) => {
     categoryId: z.coerce.number().int().positive().optional().nullable(),
     unitOfMeasure: z.string().min(1),
     reorderLevel: z.coerce.number().min(0),
+    unitCost: z.coerce.number().min(0).optional(),
   });
 
   const parsed = schema.safeParse(req.body);
@@ -705,6 +759,7 @@ app.put('/api/products/:id', authMiddleware, async (req, res) => {
           category_id: parsed.data.categoryId || null,
           unit_of_measure: parsed.data.unitOfMeasure.trim(),
           reorder_level: Number(parsed.data.reorderLevel),
+          per_unit_cost: Number(parsed.data.unitCost || 0),
         },
       },
       { returnDocument: 'after', projection: { _id: 0 } }
@@ -723,9 +778,74 @@ app.put('/api/products/:id', authMiddleware, async (req, res) => {
       category_id: row.category_id,
       unit_of_measure: row.unit_of_measure,
       reorder_level: row.reorder_level,
+      per_unit_cost: Number(row.per_unit_cost || 0),
     });
   } catch (error) {
     return res.status(500).json({ message: 'Failed to update product', detail: error.message });
+  }
+});
+
+app.post('/api/products/:id/adjust-stock', authMiddleware, async (req, res) => {
+  const schema = z.object({
+    locationId: z.coerce.number().int().positive(),
+    delta: z.coerce.number(),
+    notes: z.string().max(200).optional().nullable(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: 'Invalid stock adjustment payload' });
+  }
+
+  const productId = Number(req.params.id);
+  const locationId = Number(parsed.data.locationId);
+  const delta = Number(parsed.data.delta);
+
+  if (delta === 0) {
+    return res.status(400).json({ message: 'Stock delta cannot be zero' });
+  }
+
+  try {
+    const [product, location] = await Promise.all([
+      getCollection('products').findOne({ id: productId }, { projection: { _id: 0, id: 1, name: 1, sku: 1 } }),
+      getCollection('locations').findOne({ id: locationId }, { projection: { _id: 0, id: 1, name: 1 } }),
+    ]);
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    if (!location) {
+      return res.status(404).json({ message: 'Location not found' });
+    }
+
+    const current = await getStockAtLocation(productId, locationId);
+    if (delta < 0 && current < Math.abs(delta)) {
+      return res.status(400).json({ message: 'Adjustment cannot reduce below zero' });
+    }
+
+    await updateStock(productId, locationId, delta);
+
+    await getCollection('stock_ledger').insertOne({
+      id: await getNextSequence('stock_ledger'),
+      operation_id: null,
+      product_id: productId,
+      move_type: 'adjustment',
+      from_location_id: null,
+      to_location_id: locationId,
+      quantity: delta,
+      notes: parsed.data.notes?.trim() || 'Manual stock update from product page',
+      created_by: Number(req.user.id),
+      created_at: new Date(),
+    });
+
+    return res.json({
+      message: 'Stock updated',
+      product_id: product.id,
+      location_id: location.id,
+      current_quantity: current + delta,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: 'Failed to adjust stock', detail: error.message });
   }
 });
 
@@ -785,6 +905,21 @@ app.get('/api/operations', authMiddleware, async (req, res) => {
       });
     }
 
+    if (req.query.search) {
+      const search = String(req.query.search).toLowerCase();
+      operations = operations.filter((op) => {
+        const fromLoc = locationById.get(op.from_location_id);
+        const toLoc = locationById.get(op.to_location_id);
+        return (
+          String(op.reference_code || '').toLowerCase().includes(search) ||
+          String(op.customer_name || '').toLowerCase().includes(search) ||
+          String(op.supplier_name || '').toLowerCase().includes(search) ||
+          String(fromLoc?.name || '').toLowerCase().includes(search) ||
+          String(toLoc?.name || '').toLowerCase().includes(search)
+        );
+      });
+    }
+
     const rows = operations
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .map((op) => {
@@ -800,6 +935,7 @@ app.get('/api/operations', authMiddleware, async (req, res) => {
           reference_code: op.reference_code || null,
           supplier_name: op.supplier_name || null,
           customer_name: op.customer_name || null,
+          contact_name: op.customer_name || op.supplier_name || null,
           from_location_id: op.from_location_id || null,
           to_location_id: op.to_location_id || null,
           scheduled_at: op.scheduled_at || null,

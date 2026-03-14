@@ -207,6 +207,11 @@ label {
   gap: 1rem;
 }
 
+.header-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
 .filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -289,6 +294,118 @@ label {
   font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.table-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.qty-in {
+  color: var(--ok);
+  font-weight: 700;
+}
+
+.qty-out {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.view-toggle button.active {
+  background: linear-gradient(120deg, var(--brand-2), #229b8d);
+  color: #fff;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.status-draft {
+  background: #eef4ff;
+  color: #2b4f8f;
+}
+
+.status-waiting {
+  background: #fff5e8;
+  color: #9b5c10;
+}
+
+.status-ready {
+  background: #ecfff3;
+  color: #176d41;
+}
+
+.status-done {
+  background: #e7fbef;
+  color: #0f7b43;
+}
+
+.status-canceled {
+  background: #fff0ef;
+  color: #9c2d2b;
+}
+
+.kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem;
+}
+
+.kanban-column {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  padding: 0.65rem;
+  box-shadow: var(--shadow);
+  min-height: 260px;
+}
+
+.kanban-column header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.kanban-column header span {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.kanban-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.kanban-card {
+  border: 1px solid #e2ebd7;
+  border-radius: 0.7rem;
+  background: #fbfff7;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.kanban-card strong {
+  color: #274f3d;
+}
+
+.kanban-card p {
+  font-size: 0.84rem;
+  color: #3d5845;
 }
 
 .action-buttons {

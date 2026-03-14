@@ -5,7 +5,10 @@ export default function SettingsPage() {
   const [warehouses, setWarehouses] = useState([]);
   const [locations, setLocations] = useState([]);
   const [warehouseName, setWarehouseName] = useState('');
+  const [warehouseShortCode, setWarehouseShortCode] = useState('');
+  const [warehouseAddress, setWarehouseAddress] = useState('');
   const [locationName, setLocationName] = useState('');
+  const [locationShortCode, setLocationShortCode] = useState('');
   const [locationWarehouseId, setLocationWarehouseId] = useState('');
   const [error, setError] = useState('');
 
@@ -33,8 +36,14 @@ export default function SettingsPage() {
 
     setError('');
     try {
-      await api.post('/warehouses', { name: warehouseName.trim() });
+      await api.post('/warehouses', {
+        name: warehouseName.trim(),
+        shortCode: warehouseShortCode.trim() || null,
+        address: warehouseAddress.trim() || null,
+      });
       setWarehouseName('');
+      setWarehouseShortCode('');
+      setWarehouseAddress('');
       await loadData();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create warehouse.');
@@ -50,8 +59,10 @@ export default function SettingsPage() {
       await api.post('/locations', {
         name: locationName.trim(),
         warehouseId: Number(locationWarehouseId),
+        shortCode: locationShortCode.trim() || null,
       });
       setLocationName('');
+      setLocationShortCode('');
       await loadData();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create location.');
@@ -77,6 +88,18 @@ export default function SettingsPage() {
             Warehouse Name
             <input value={warehouseName} onChange={(e) => setWarehouseName(e.target.value)} required />
           </label>
+          <label>
+            Short Code
+            <input
+              placeholder="WH1"
+              value={warehouseShortCode}
+              onChange={(e) => setWarehouseShortCode(e.target.value)}
+            />
+          </label>
+          <label>
+            Address
+            <input value={warehouseAddress} onChange={(e) => setWarehouseAddress(e.target.value)} />
+          </label>
           <button type="submit">Create Warehouse</button>
         </form>
 
@@ -96,6 +119,14 @@ export default function SettingsPage() {
             Location Name
             <input value={locationName} onChange={(e) => setLocationName(e.target.value)} required />
           </label>
+          <label>
+            Short Code
+            <input
+              placeholder="STK1"
+              value={locationShortCode}
+              onChange={(e) => setLocationShortCode(e.target.value)}
+            />
+          </label>
           <button type="submit">Create Location</button>
         </form>
       </div>
@@ -108,6 +139,8 @@ export default function SettingsPage() {
               <tr>
                 <th>ID</th>
                 <th>Name</th>
+                <th>Short Code</th>
+                <th>Address</th>
               </tr>
             </thead>
             <tbody>
@@ -115,6 +148,8 @@ export default function SettingsPage() {
                 <tr key={row.id}>
                   <td>{row.id}</td>
                   <td>{row.name}</td>
+                  <td>{row.short_code || '-'}</td>
+                  <td>{row.address || '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -129,6 +164,7 @@ export default function SettingsPage() {
                 <th>ID</th>
                 <th>Warehouse</th>
                 <th>Location</th>
+                <th>Short Code</th>
               </tr>
             </thead>
             <tbody>
@@ -137,6 +173,7 @@ export default function SettingsPage() {
                   <td>{row.id}</td>
                   <td>{row.warehouse_name}</td>
                   <td>{row.name}</td>
+                  <td>{row.short_code || '-'}</td>
                 </tr>
               ))}
             </tbody>
