@@ -110,14 +110,25 @@ function unwrapFindOneAndUpdateResult(result) {
 }
 
 const signupSchema = z.object({
+  loginId: z
+    .string()
+    .trim()
+    .min(6, 'Login ID must be at least 6 characters.')
+    .max(12, 'Login ID must be at most 12 characters.')
+    .regex(/^[A-Za-z0-9_]+$/, 'Login ID can only contain letters, numbers, and underscore.'),
   fullName: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z
+    .string()
+    .min(9, 'Password must be more than 8 characters.')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character.'),
   role: z.enum(['inventory_manager', 'warehouse_staff']).optional(),
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  loginId: z.string().trim().min(1),
   password: z.string().min(6),
 });
 
@@ -136,21 +147,42 @@ app.post('/api/auth/signup', async (req, res) => {
     return res.status(400).json({ message: 'Invalid input', errors: parsed.error.issues });
   }
 
-  const { fullName, email, password, role } = parsed.data;
+  const { loginId, fullName, email, password, role } = parsed.data;
 
   try {
+    const normalizedLoginId = loginId.toLowerCase();
     const normalizedEmail = email.toLowerCase();
     const users = getCollection('users');
+
+    const existingLoginId = await users.findOne({ login_id: normalizedLoginId });
+    if (existingLoginId) {
+      return res.status(409).json({ message: 'Login ID already registered' });
+    }
 
     const existing = await users.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(409).json({ message: 'Email already registered' });
     }
 
+    const existingPasswordUsers = await users.find({}, { projection: { _id: 0, password_hash: 1 } }).toArray();
+    for (const existingUser of existingPasswordUsers) {
+      if (!existingUser.password_hash) {
+        continue;
+      }
+
+      const alreadyUsed = await bcrypt.compare(password, existingUser.password_hash);
+      if (alreadyUsed) {
+        return res.status(409).json({
+          message: 'Password is already in use. Please choose a unique password.',
+        });
+      }
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
 
     const newUser = {
       id: await getNextSequence('users'),
+      login_id: normalizedLoginId,
       full_name: fullName,
       email: normalizedEmail,
       password_hash: passwordHash,
@@ -162,6 +194,7 @@ app.post('/api/auth/signup', async (req, res) => {
 
     const responseUser = {
       id: newUser.id,
+      login_id: newUser.login_id,
       full_name: newUser.full_name,
       email: newUser.email,
       role: newUser.role,
@@ -180,17 +213,17 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ message: 'Invalid input', errors: parsed.error.issues });
   }
 
-  const { email, password } = parsed.data;
+  const { loginId, password } = parsed.data;
 
   try {
-    const user = await getCollection('users').findOne({ email: email.toLowerCase() });
+    const user = await getCollection('users').findOne({ login_id: loginId.toLowerCase() });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid Login Id or Password' });
     }
 
     const matches = await bcrypt.compare(password, user.password_hash);
     if (!matches) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid Login Id or Password' });
     }
 
     const token = createToken(user);
@@ -198,6 +231,7 @@ app.post('/api/auth/login', async (req, res) => {
       token,
       user: {
         id: user.id,
+        login_id: user.login_id,
         full_name: user.full_name,
         email: user.email,
         role: user.role,
@@ -293,7 +327,7 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
     const user = await getCollection('users').findOne(
       { id: Number(req.user.id) },
-      { projection: { _id: 0, id: 1, full_name: 1, email: 1, role: 1, created_at: 1 } }
+      { projection: { _id: 0, id: 1, login_id: 1, full_name: 1, email: 1, role: 1, created_at: 1 } }
     );
 
     if (!user) {

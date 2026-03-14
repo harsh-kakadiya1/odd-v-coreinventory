@@ -118,6 +118,96 @@ label {
   animation: reveal 0.45s ease;
 }
 
+.auth-panel-sm {
+  width: min(460px, 100%);
+}
+
+.auth-title {
+  text-align: center;
+  font-size: 1.6rem;
+}
+
+.auth-logo-box {
+  width: 120px;
+  height: 56px;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  margin: 0 auto;
+  background: #fbfdf8;
+}
+
+.auth-links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+}
+
+.auth-links-center {
+  justify-content: center;
+}
+
+.auth-links a {
+  color: var(--brand-2);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-links a:hover {
+  text-decoration: underline;
+}
+
+.password-hint {
+  margin-top: -0.2rem;
+  margin-bottom: -0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.password-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.password-checklist.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.password-checklist li {
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  padding: 0.25rem 0.45rem;
+}
+
+.password-checklist li.valid {
+  color: var(--ok);
+  background: #eefcf4;
+  border-color: #9de0ba;
+}
+
+.password-checklist li.invalid {
+  color: #7b5b2f;
+  background: #fff8eb;
+  border-color: #edcf97;
+}
+
+.error-inline {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .password-checklist.compact {
+    grid-template-columns: 1fr;
+  }
+}
+
 .auth-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

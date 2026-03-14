@@ -50,6 +50,31 @@ Use Docker:
 docker compose up -d
 ```
 
+### MongoDB Compass connection
+
+If you are using local MongoDB service/manual `mongod` (no auth), use:
+
+```bash
+mongodb://localhost:27017/coreinventory
+```
+
+If you are using Docker from this repo (`docker-compose.yml` with root credentials), use:
+
+```bash
+mongodb://root:root@localhost:27017/coreinventory?authSource=admin
+```
+
+If you prefer filling fields manually in Compass:
+
+- Hostname: `localhost`
+- Port: `27017`
+- Authentication: `Username / Password`
+- Username: `root`
+- Password: `root`
+- Authentication Database: `admin`
+
+After connecting, open the `coreinventory` database.
+
 ### 2) Initialize database indexes and defaults
 
 ```bash

@@ -6,6 +6,52 @@ const databaseName = process.env.MONGODB_DB_NAME || 'coreinventory';
 let client;
 let db;
 
+function normalizeLoginIdCandidate(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 12);
+}
+
+async function ensureUserLoginIds() {
+  const users = getCollection('users');
+  const existingUsers = await users
+    .find({}, { projection: { _id: 1, id: 1, email: 1, login_id: 1 } })
+    .toArray();
+
+  const usedLoginIds = new Set(
+    existingUsers
+      .map((user) => normalizeLoginIdCandidate(user.login_id))
+      .filter((loginId) => Boolean(loginId))
+  );
+
+  for (const user of existingUsers) {
+    const current = normalizeLoginIdCandidate(user.login_id);
+    if (current) {
+      continue;
+    }
+
+    const emailPrefix = String(user.email || '').split('@')[0];
+    const userIdPart = String(user.id || '').replace(/[^0-9]/g, '');
+    let base = normalizeLoginIdCandidate(emailPrefix) || normalizeLoginIdCandidate(`user${userIdPart}`) || 'user000';
+    if (base.length < 6) {
+      base = `${base}${userIdPart || '000000'}`.slice(0, 12);
+    }
+
+    let candidate = base.slice(0, 12);
+    let attempt = 1;
+    while (usedLoginIds.has(candidate) || candidate.length < 6) {
+      const suffix = String(attempt);
+      const prefixLength = Math.max(6 - suffix.length, 1);
+      candidate = `${base.slice(0, Math.max(12 - suffix.length, prefixLength))}${suffix}`.slice(0, 12);
+      attempt += 1;
+    }
+
+    usedLoginIds.add(candidate);
+    await users.updateOne({ _id: user._id }, { $set: { login_id: candidate } });
+  }
+}
+
 async function connectToDatabase() {
   if (db) {
     return db;
@@ -58,8 +104,10 @@ async function getNextSequence(sequenceName) {
 
 async function ensureDatabaseSetup() {
   await connectToDatabase();
+  await ensureUserLoginIds();
 
   await Promise.all([
+    getCollection('users').createIndex({ login_id: 1 }, { unique: true }),
     getCollection('users').createIndex({ email: 1 }, { unique: true }),
     getCollection('categories').createIndex({ name: 1 }, { unique: true }),
     getCollection('warehouses').createIndex({ name: 1 }, { unique: true }),

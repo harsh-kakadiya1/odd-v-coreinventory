@@ -14,6 +14,7 @@ const {
 const SEEDED_ACCOUNTS = [
   {
     id: 1001,
+    login_id: 'admin01',
     full_name: 'System Admin',
     email: 'admin@coreinventory.local',
     password: 'Admin@123',
@@ -21,6 +22,7 @@ const SEEDED_ACCOUNTS = [
   },
   {
     id: 1002,
+    login_id: 'manager1',
     full_name: 'Inventory Manager',
     email: 'manager@coreinventory.local',
     password: 'Manager@123',
@@ -28,6 +30,7 @@ const SEEDED_ACCOUNTS = [
   },
   {
     id: 1003,
+    login_id: 'staff001',
     full_name: 'Warehouse Staff',
     email: 'staff@coreinventory.local',
     password: 'Staff@123',
@@ -35,9 +38,10 @@ const SEEDED_ACCOUNTS = [
   },
   {
     id: 1004,
+    login_id: 'testuser',
     full_name: 'Test User',
     email: 'test.user@example.com',
-    password: 'secret123',
+    password: 'Secret@123',
     role: 'inventory_manager',
   },
 ];
@@ -145,6 +149,7 @@ async function seedUsers() {
       { email: account.email.toLowerCase() },
       {
         id: account.id,
+        login_id: account.login_id.toLowerCase(),
         full_name: account.full_name,
         email: account.email.toLowerCase(),
         password_hash,
@@ -152,6 +157,7 @@ async function seedUsers() {
         created_at: new Date(),
       },
       {
+        login_id: account.login_id.toLowerCase(),
         full_name: account.full_name,
         password_hash,
         role: account.role,
@@ -164,6 +170,7 @@ async function seedUsers() {
   const maxUserId = users.reduce((max, user) => Math.max(max, Number(user.id || 0)), 0);
   await bumpCounterAtLeast('users', maxUserId);
   await usersCollection.createIndex({ id: 1 }, { unique: true });
+  await usersCollection.createIndex({ login_id: 1 }, { unique: true });
 
   return users;
 }
@@ -468,13 +475,14 @@ function printSeedSummary(users) {
     const source = SEEDED_ACCOUNTS.find((account) => account.email.toLowerCase() === user.email.toLowerCase());
     return {
       id: user.id,
+      login_id: user.login_id,
       email: user.email,
       password: source ? source.password : 'n/a',
       role: user.role,
     };
   });
 
-  console.log('\nSeeded Accounts (ID / Email / Password / Role):');
+  console.log('\nSeeded Accounts (ID / Login ID / Email / Password / Role):');
   console.table(rows);
 }
 
