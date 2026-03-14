@@ -20,7 +20,7 @@ const app = express();
 const port = Number(process.env.PORT || 4000);
 const jwtSecret = process.env.JWT_SECRET || 'change-me';
 const otpExpiryMinutes = Number(process.env.OTP_EXPIRY_MINUTES || 10);
-const strongPasswordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$/;
+const strongPasswordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{9,}$/;
 
 const smtpConfig = {
   host: process.env.SMTP_HOST,
@@ -150,6 +150,12 @@ async function sendResetOtpEmail({ to, otp, fullName }) {
 }
 
 const signupSchema = z.object({
+  loginId: z
+    .string()
+    .trim()
+    .min(6)
+    .max(12)
+    .regex(/^[A-Za-z0-9_]+$/),
   fullName: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(9).regex(strongPasswordRule),
@@ -157,7 +163,12 @@ const signupSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().email(),
+  loginId: z
+    .string()
+    .trim()
+    .min(6)
+    .max(12)
+    .regex(/^[A-Za-z0-9_]+$/),
   password: z.string().min(6),
 });
 
@@ -175,16 +186,22 @@ app.post('/api/auth/signup', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       message:
-        'Invalid input. Password must be at least 9 chars and include uppercase, lowercase, number, and special character.',
+        'Invalid input. Login ID must be 6-12 characters. Password must be at least 9 chars and include uppercase, lowercase, and special character.',
       errors: parsed.error.issues,
     });
   }
 
-  const { fullName, email, password, role } = parsed.data;
+  const { loginId, fullName, email, password, role } = parsed.data;
 
   try {
+    const normalizedLoginId = loginId.trim();
     const normalizedEmail = email.toLowerCase();
     const users = getCollection('users');
+
+    const existingLoginId = await users.findOne({ login_id: normalizedLoginId });
+    if (existingLoginId) {
+      return res.status(409).json({ message: 'Login ID already registered' });
+    }
 
     const existing = await users.findOne({ email: normalizedEmail });
     if (existing) {
@@ -195,6 +212,7 @@ app.post('/api/auth/signup', async (req, res) => {
 
     const newUser = {
       id: await getNextSequence('users'),
+      login_id: normalizedLoginId,
       full_name: fullName,
       email: normalizedEmail,
       password_hash: passwordHash,
@@ -206,6 +224,7 @@ app.post('/api/auth/signup', async (req, res) => {
 
     const responseUser = {
       id: newUser.id,
+      login_id: newUser.login_id,
       full_name: newUser.full_name,
       email: newUser.email,
       role: newUser.role,
@@ -221,20 +240,20 @@ app.post('/api/auth/signup', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ message: 'Invalid input', errors: parsed.error.issues });
+    return res.status(400).json({ message: 'Invalid Login Id or Password' });
   }
 
-  const { email, password } = parsed.data;
+  const { loginId, password } = parsed.data;
 
   try {
-    const user = await getCollection('users').findOne({ email: email.toLowerCase() });
+    const user = await getCollection('users').findOne({ login_id: loginId.trim() });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid Login Id or Password' });
     }
 
     const matches = await bcrypt.compare(password, user.password_hash);
     if (!matches) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return res.status(401).json({ message: 'Invalid Login Id or Password' });
     }
 
     const token = createToken(user);
@@ -242,6 +261,7 @@ app.post('/api/auth/login', async (req, res) => {
       token,
       user: {
         id: user.id,
+        login_id: user.login_id,
         full_name: user.full_name,
         email: user.email,
         role: user.role,
@@ -304,7 +324,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({
       message:
-        'Invalid payload. New password must be at least 9 chars and include uppercase, lowercase, number, and special character.',
+        'Invalid payload. New password must be at least 9 chars and include uppercase, lowercase, and special character.',
     });
   }
 

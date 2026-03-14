@@ -195,6 +195,46 @@ label {
   background: #fff;
 }
 
+.auth-panel > * {
+  width: 100%;
+  max-width: 380px;
+  margin-inline: auto;
+}
+
+.auth-panel-sm {
+  width: min(460px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-md);
+}
+
+.auth-card {
+  width: 100%;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.auth-title {
+  text-align: center;
+}
+
+.auth-links {
+  display: flex;
+  justify-content: center;
+}
+
+.auth-links a {
+  color: inherit;
+}
+
+.auth-links-center {
+  text-align: center;
+}
+
+.auth-panel .form-grid .muted {
+  text-align: center;
+}
+
 .auth-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -203,6 +243,14 @@ label {
   border: 1px solid var(--line);
   border-radius: 0.625rem;
   padding: 0.25rem;
+}
+
+.auth-tabs-two {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.auth-subtitle {
+  text-align: center;
 }
 
 .auth-tabs button {

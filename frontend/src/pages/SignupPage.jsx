@@ -12,7 +12,7 @@ const initialSignup = {
   role: 'inventory_manager',
 };
 
-const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{9,}$/;
+const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{9,}$/;
 
 const passwordChecks = [
   {
@@ -29,11 +29,6 @@ const passwordChecks = [
     key: 'hasUpper',
     label: 'Add at least one uppercase letter',
     test: (password) => /[A-Z]/.test(password),
-  },
-  {
-    key: 'hasNumber',
-    label: 'Add at least one number',
-    test: (password) => /\d/.test(password),
   },
   {
     key: 'hasSpecial',
@@ -80,7 +75,7 @@ export default function SignupPage() {
     }
 
     if (!passwordRule.test(signupForm.password)) {
-      setError('Password must contain lowercase, uppercase, number, special character and be more than 8 characters.');
+      setError('Password must contain lowercase, uppercase, and special character and be more than 8 characters.');
       return;
     }
 
@@ -88,9 +83,9 @@ export default function SignupPage() {
 
     try {
       const payload = {
-        loginId: signupForm.loginId,
-        fullName: signupForm.loginId,
-        email: signupForm.email,
+        loginId: signupForm.loginId.trim(),
+        fullName: signupForm.loginId.trim(),
+        email: signupForm.email.trim(),
         password: signupForm.password,
         role: signupForm.role,
       };
@@ -119,7 +114,7 @@ export default function SignupPage() {
         <section className="auth-panel">
           <div className="auth-card">
             <h1 className="auth-title">Create an account</h1>
-            <p className="muted">Sign up to access CoreInventory</p>
+            <p className="muted auth-subtitle">Sign up to access CoreInventory</p>
 
             <form onSubmit={handleSignup} className="form-grid">
               <label>
